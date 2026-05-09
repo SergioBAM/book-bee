@@ -4,22 +4,23 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CenterAlignedTopAppBar
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Tab
+import androidx.compose.material3.TabIndicatorScope
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -34,7 +35,6 @@ import com.sergebailes.bookbee.core.BookBeeSections
 import com.sergebailes.bookbee.ui.theme.BookBeeTheme
 import kotlinx.coroutines.launch
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun BookBeeApp(modifier: Modifier = Modifier) {
     val sections = BookBeeSections.all
@@ -44,42 +44,42 @@ fun BookBeeApp(modifier: Modifier = Modifier) {
     Scaffold(
         modifier = modifier.fillMaxSize(),
         topBar = {
-            CenterAlignedTopAppBar(
-                title = { Text(text = "Book Bee") }
-            )
+            Surface(shadowElevation = 4.dp) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .statusBarsPadding()
+                        .padding(top = 8.dp, bottom = 8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = "Book Bee",
+                        modifier = Modifier.align(Alignment.CenterHorizontally),
+                        style = MaterialTheme.typography.titleLarge,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    SectionTabRow(
+                        sections = sections,
+                        selectedPage = pagerState.currentPage,
+                        onSectionSelected = { index ->
+                            scope.launch {
+                                pagerState.animateScrollToPage(index)
+                            }
+                        }
+                    )
+                }
+            }
         },
         bottomBar = {
             Surface(
                 modifier = Modifier.navigationBarsPadding(),
-                shadowElevation = 6.dp
+                tonalElevation = 1.dp
             ) {
-                Column(
+                Spacer(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 20.dp, vertical = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
-                    ) {
-                        sections.forEachIndexed { index, section ->
-                            FilterChip(
-                                selected = pagerState.currentPage == index,
-                                onClick = {
-                                    scope.launch {
-                                        pagerState.animateScrollToPage(index)
-                                    }
-                                },
-                                label = { Text(section.title) }
-                            )
-                        }
-                    }
-                    PagerIndicator(
-                        pageCount = sections.size,
-                        currentPage = pagerState.currentPage
-                    )
-                }
+                        .height(28.dp)
+                )
             }
         }
     ) { innerPadding ->
@@ -139,32 +139,68 @@ private fun SectionPlaceholder(
 }
 
 @Composable
-private fun PagerIndicator(
-    pageCount: Int,
-    currentPage: Int,
+private fun SectionTabRow(
+    sections: List<BookBeeSection>,
+    selectedPage: Int,
+    onSectionSelected: (Int) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Row(
+    PrimaryTabRow(
+        selectedTabIndex = selectedPage,
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.Center
-    ) {
-        repeat(pageCount) { page ->
-            val width = if (page == currentPage) 28.dp else 10.dp
-            val color = if (page == currentPage) {
-                MaterialTheme.colorScheme.primary
-            } else {
-                MaterialTheme.colorScheme.surfaceVariant
-            }
-
-            Box(
-                modifier = Modifier
-                    .padding(horizontal = 4.dp)
-                    .clip(RoundedCornerShape(999.dp))
-                    .background(color)
-                    .width(width)
-                    .height(10.dp)
+        containerColor = MaterialTheme.colorScheme.surface,
+        divider = {},
+        indicator = {
+            SectionTabIndicator(
+                tabIndicatorScope = this,
+                selectedPage = selectedPage
             )
         }
+    ) {
+        sections.forEachIndexed { index, section ->
+            Tab(
+                selected = selectedPage == index,
+                onClick = { onSectionSelected(index) },
+                selectedContentColor = MaterialTheme.colorScheme.onSurface,
+                unselectedContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                text = {
+                    Text(
+                        text = section.title,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = if (selectedPage == index) FontWeight.SemiBold else FontWeight.Medium
+                    )
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun SectionTabIndicator(
+    tabIndicatorScope: TabIndicatorScope,
+    selectedPage: Int,
+    modifier: Modifier = Modifier
+) {
+    val indicatorWidth = 28.dp
+
+    Box(
+        modifier = modifier
+            .fillMaxWidth()
+            .then(
+                with(tabIndicatorScope) {
+                    Modifier.tabIndicatorOffset(selectedPage, false)
+                }
+            )
+            .padding(bottom = 8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .width(indicatorWidth)
+                .height(6.dp)
+                .clip(RoundedCornerShape(999.dp))
+                .background(MaterialTheme.colorScheme.primary)
+        )
     }
 }
 
