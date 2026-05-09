@@ -24,3 +24,4 @@ dependencyResolutionManagement {
 
 rootProject.name = "BookBee"
 include(":app")
+include(":core")
