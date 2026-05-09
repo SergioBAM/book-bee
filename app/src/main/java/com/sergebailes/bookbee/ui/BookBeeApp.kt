@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
@@ -48,17 +49,16 @@ fun BookBeeApp(modifier: Modifier = Modifier) {
             )
         },
         bottomBar = {
-            Surface(shadowElevation = 6.dp) {
+            Surface(
+                modifier = Modifier.navigationBarsPadding(),
+                shadowElevation = 6.dp
+            ) {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 20.dp, vertical = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
-                    PagerIndicator(
-                        pageCount = sections.size,
-                        currentPage = pagerState.currentPage
-                    )
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally)
@@ -75,6 +75,10 @@ fun BookBeeApp(modifier: Modifier = Modifier) {
                             )
                         }
                     }
+                    PagerIndicator(
+                        pageCount = sections.size,
+                        currentPage = pagerState.currentPage
+                    )
                 }
             }
         }
