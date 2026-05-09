@@ -70,18 +70,18 @@ fun BookBeeApp(modifier: Modifier = Modifier) {
                 }
             }
         },
-        bottomBar = {
-            Surface(
-                modifier = Modifier.navigationBarsPadding(),
-                tonalElevation = 1.dp
-            ) {
-                Spacer(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(28.dp)
-                )
-            }
-        }
+//        bottomBar = {
+//            Surface(
+//                modifier = Modifier.navigationBarsPadding(),
+//                tonalElevation = 1.dp
+//            ) {
+//                Spacer(
+//                    modifier = Modifier
+//                        .fillMaxWidth()
+//                        .height(28.dp)
+//                )
+//            }
+//        }
     ) { innerPadding ->
         HorizontalPager(
             state = pagerState,
@@ -105,7 +105,7 @@ private fun SectionPlaceholder(
     Box(
         modifier = modifier
             .background(MaterialTheme.colorScheme.background)
-            .padding(horizontal = 24.dp, vertical = 20.dp),
+            .padding(horizontal = 24.dp, vertical = 8.dp),
         contentAlignment = Alignment.Center
     ) {
         Column(
