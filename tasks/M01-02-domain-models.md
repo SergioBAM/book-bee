@@ -4,6 +4,14 @@
 
 Create domain models that represent Book Bee shelf data without depending on Android or Room.
 
+## Context
+
+Read:
+- AGENTS.md
+- docs/product.md
+- docs/architecture.md
+- docs/roadmap.md
+
 ## Requirements
 
 Implement domain models for:

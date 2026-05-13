@@ -4,6 +4,14 @@
 
 Add repository interfaces and Room-backed implementations for shelf storage.
 
+## Context
+
+Read:
+- AGENTS.md
+- docs/product.md
+- docs/architecture.md
+- docs/roadmap.md
+
 ## Requirements
 
 Implement:

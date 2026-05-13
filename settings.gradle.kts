@@ -26,3 +26,4 @@ rootProject.name = "BookBee"
 include(":app")
 include(":core")
 include(":data")
+include(":domain")
