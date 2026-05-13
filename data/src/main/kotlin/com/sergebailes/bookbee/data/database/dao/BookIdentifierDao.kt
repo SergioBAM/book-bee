@@ -14,11 +14,17 @@ interface BookIdentifierDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insert(identifier: BookIdentifierEntity)
 
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertAll(identifiers: List<BookIdentifierEntity>)
+
     @Update
     suspend fun update(identifier: BookIdentifierEntity)
 
     @Query("SELECT * FROM book_identifiers WHERE bookId = :bookId ORDER BY type ASC, value ASC")
     suspend fun getByBookId(bookId: UUID): List<BookIdentifierEntity>
+
+    @Query("DELETE FROM book_identifiers WHERE bookId = :bookId")
+    suspend fun deleteByBookId(bookId: UUID)
 
     @Query(
         "SELECT * FROM book_identifiers " +

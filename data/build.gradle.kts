@@ -30,6 +30,8 @@ dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.room.runtime)
     implementation(libs.androidx.sqlite.framework)
+    implementation(libs.kotlinx.coroutines.core)
+    implementation(project(":domain"))
 
     ksp(libs.androidx.room.compiler)
 

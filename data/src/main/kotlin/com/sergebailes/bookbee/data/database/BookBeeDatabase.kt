@@ -8,6 +8,7 @@ import com.sergebailes.bookbee.data.database.dao.BookDao
 import com.sergebailes.bookbee.data.database.dao.BookIdentifierDao
 import com.sergebailes.bookbee.data.database.dao.MetadataLookupCacheDao
 import com.sergebailes.bookbee.data.database.dao.OwnershipDao
+import com.sergebailes.bookbee.data.database.dao.ShelfDao
 import com.sergebailes.bookbee.data.database.dao.UserProfileDao
 import com.sergebailes.bookbee.data.database.dao.WishlistItemDao
 import com.sergebailes.bookbee.data.database.entity.BookEntity
@@ -35,6 +36,7 @@ abstract class BookBeeDatabase : RoomDatabase() {
     abstract fun bookDao(): BookDao
     abstract fun bookIdentifierDao(): BookIdentifierDao
     abstract fun ownershipDao(): OwnershipDao
+    abstract fun shelfDao(): ShelfDao
     abstract fun wishlistItemDao(): WishlistItemDao
     abstract fun metadataLookupCacheDao(): MetadataLookupCacheDao
 
