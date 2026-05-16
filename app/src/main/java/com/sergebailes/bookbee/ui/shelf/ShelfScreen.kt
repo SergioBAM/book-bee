@@ -5,9 +5,12 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -45,109 +48,131 @@ fun ShelfScreen(
     onSaveBookClicked: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        modifier = modifier,
-        contentPadding = androidx.compose.foundation.layout.PaddingValues(
-            start = 24.dp,
-            top = 8.dp,
-            end = 24.dp,
-            bottom = 24.dp,
-        ),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
+    Box(
+        modifier = modifier.fillMaxSize(),
     ) {
-        item(span = { GridItemSpan(maxLineSpan) }) {
-            ShelfHeader(
-                isShowingAddForm = state.isShowingAddForm,
-                onAddBookClicked = onAddBookClicked,
-            )
-        }
-
-        state.message?.let { message ->
+        LazyVerticalGrid(
+            columns = GridCells.Fixed(2),
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(
+                start = 24.dp,
+                top = 8.dp,
+                end = 24.dp,
+                bottom = if (state.isShowingAddForm) 24.dp else 120.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                Card(
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                    ),
-                ) {
-                    Text(
-                        text = message,
-                        modifier = Modifier.padding(16.dp),
-                        color = MaterialTheme.colorScheme.onErrorContainer,
-                        style = MaterialTheme.typography.bodyMedium,
+                ShelfHeader()
+            }
+
+            state.message?.let { message ->
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    Card(
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer,
+                        ),
+                    ) {
+                        Text(
+                            text = message,
+                            modifier = Modifier.padding(16.dp),
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+            }
+
+            if (state.isShowingAddForm) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    ManualAddShelfBookCard(
+                        state = state,
+                        onCancelAddBook = onCancelAddBook,
+                        onTitleChanged = onTitleChanged,
+                        onAuthorChanged = onAuthorChanged,
+                        onNotesChanged = onNotesChanged,
+                        onIsbnChanged = onIsbnChanged,
+                        onReadStatusChanged = onReadStatusChanged,
+                        onSaveBookClicked = onSaveBookClicked,
+                    )
+                }
+            } else if (state.isLoading) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    ExplanatoryCard(
+                        title = "Loading your shelf",
+                        body = "Book Bee is preparing your local owned books so Shelf stays useful offline.",
+                    )
+                }
+            } else if (state.books.isEmpty()) {
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    ExplanatoryCard(
+                        title = "No owned books yet",
+                        body = "Shelf is the place for books you currently own. Start with a quick manual add, with ISBN optional and fully checked if you enter one.",
+                    )
+                }
+            } else {
+                items(
+                    items = state.books,
+                    key = { it.id },
+                ) { book ->
+                    ShelfBookCard(
+                        book = book,
+                        modifier = Modifier.fillMaxWidth(),
                     )
                 }
             }
         }
 
-        if (state.isShowingAddForm) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                ManualAddShelfBookCard(
-                    state = state,
-                    onCancelAddBook = onCancelAddBook,
-                    onTitleChanged = onTitleChanged,
-                    onAuthorChanged = onAuthorChanged,
-                    onNotesChanged = onNotesChanged,
-                    onIsbnChanged = onIsbnChanged,
-                    onReadStatusChanged = onReadStatusChanged,
-                    onSaveBookClicked = onSaveBookClicked,
-                )
-            }
-        } else if (state.isLoading) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                ExplanatoryCard(
-                    title = "Loading your shelf",
-                    body = "Book Bee is preparing your local owned books so Shelf stays useful offline.",
-                )
-            }
-        } else if (state.books.isEmpty()) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
-                ExplanatoryCard(
-                    title = "No owned books yet",
-                    body = "Shelf is the place for books you currently own. Start with a quick manual add, with ISBN optional and fully checked if you enter one.",
-                )
-            }
-        } else {
-            items(
-                items = state.books,
-                key = { it.id },
-            ) { book ->
-                ShelfBookCard(
-                    book = book,
-                    modifier = Modifier.fillMaxWidth(),
-                )
-            }
+        if (!state.isShowingAddForm) {
+            ShelfFooter(
+                onAddBookClicked = onAddBookClicked,
+                modifier = Modifier.align(Alignment.BottomCenter),
+            )
         }
     }
 }
 
 @Composable
 private fun ShelfHeader(
-    isShowingAddForm: Boolean,
-    onAddBookClicked: () -> Unit,
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Books you currently own.",
+            text = "Books you currently own",
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
         )
-        if (!isShowingAddForm) {
-            Box(
-                modifier = Modifier.fillMaxWidth(),
-                contentAlignment = Alignment.Center,
+    }
+}
+
+@Composable
+private fun ShelfFooter(
+    onAddBookClicked: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .navigationBarsPadding()
+        //shadowElevation = 8.dp,
+        //tonalElevation = 3.dp,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 24.dp, vertical = 12.dp),
+            contentAlignment = Alignment.Center,
+        ) {
+            Button(
+                onClick = onAddBookClicked,
+                modifier = Modifier
+                    .fillMaxWidth(0.5f)
+                    .defaultMinSize(minHeight = 52.dp),
             ) {
-                Button(
-                    onClick = onAddBookClicked,
-                    modifier = Modifier
-                        .fillMaxWidth(0.5f)
-                        .defaultMinSize(minHeight = 52.dp),
-                ) {
-                    Text("Add book")
-                }
+                Text("Add book")
             }
         }
     }
