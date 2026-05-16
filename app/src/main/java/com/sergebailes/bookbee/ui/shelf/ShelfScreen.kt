@@ -1,5 +1,6 @@
 package com.sergebailes.bookbee.ui.shelf
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,13 +11,18 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.imeNestedScroll
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -28,12 +34,17 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.composed
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.sergebailes.bookbee.domain.model.ReadStatus
+import kotlinx.coroutines.launch
 
 @Composable
 fun ShelfScreen(
@@ -48,6 +59,33 @@ fun ShelfScreen(
     onSaveBookClicked: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    if (state.isShowingAddForm) {
+        ManualAddShelfLayout(
+            state = state,
+            onCancelAddBook = onCancelAddBook,
+            onTitleChanged = onTitleChanged,
+            onAuthorChanged = onAuthorChanged,
+            onNotesChanged = onNotesChanged,
+            onIsbnChanged = onIsbnChanged,
+            onReadStatusChanged = onReadStatusChanged,
+            onSaveBookClicked = onSaveBookClicked,
+            modifier = modifier,
+        )
+    } else {
+        ShelfBrowseLayout(
+            state = state,
+            onAddBookClicked = onAddBookClicked,
+            modifier = modifier,
+        )
+    }
+}
+
+@Composable
+private fun ShelfBrowseLayout(
+    state: ShelfUiState,
+    onAddBookClicked: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     Box(
         modifier = modifier.fillMaxSize(),
     ) {
@@ -58,46 +96,24 @@ fun ShelfScreen(
                 start = 24.dp,
                 top = 8.dp,
                 end = 24.dp,
-                bottom = if (state.isShowingAddForm) 24.dp else 120.dp,
+                bottom = 120.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp),
             horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             item(span = { GridItemSpan(maxLineSpan) }) {
-                ShelfHeader()
+                ShelfHeader(
+                    title = "Books you currently own",
+                )
             }
 
             state.message?.let { message ->
                 item(span = { GridItemSpan(maxLineSpan) }) {
-                    Card(
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer,
-                        ),
-                    ) {
-                        Text(
-                            text = message,
-                            modifier = Modifier.padding(16.dp),
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
-                    }
+                    InlineMessageCard(message = message)
                 }
             }
 
-            if (state.isShowingAddForm) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
-                    ManualAddShelfBookCard(
-                        state = state,
-                        onCancelAddBook = onCancelAddBook,
-                        onTitleChanged = onTitleChanged,
-                        onAuthorChanged = onAuthorChanged,
-                        onNotesChanged = onNotesChanged,
-                        onIsbnChanged = onIsbnChanged,
-                        onReadStatusChanged = onReadStatusChanged,
-                        onSaveBookClicked = onSaveBookClicked,
-                    )
-                }
-            } else if (state.isLoading) {
+            if (state.isLoading) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     ExplanatoryCard(
                         title = "Loading your shelf",
@@ -124,27 +140,92 @@ fun ShelfScreen(
             }
         }
 
-        if (!state.isShowingAddForm) {
-            ShelfFooter(
-                onAddBookClicked = onAddBookClicked,
-                modifier = Modifier.align(Alignment.BottomCenter),
-            )
+        ShelfFooter(
+            onAddBookClicked = onAddBookClicked,
+            modifier = Modifier.align(Alignment.BottomCenter),
+        )
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun ManualAddShelfLayout(
+    state: ShelfUiState,
+    onCancelAddBook: () -> Unit,
+    onTitleChanged: (String) -> Unit,
+    onAuthorChanged: (String) -> Unit,
+    onNotesChanged: (String) -> Unit,
+    onIsbnChanged: (String) -> Unit,
+    onReadStatusChanged: (ReadStatus) -> Unit,
+    onSaveBookClicked: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Box(
+        modifier = modifier.fillMaxSize(),
+    ) {
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .imePadding()
+                .imeNestedScroll(),
+            contentPadding = PaddingValues(
+                start = 24.dp,
+                top = 8.dp,
+                end = 24.dp,
+                bottom = 24.dp,
+            ),
+            verticalArrangement = Arrangement.spacedBy(16.dp),
+        ) {
+            item {
+                ShelfHeader(
+                    title = "Add a book to Shelf",
+                    supportingText = "Enter the basics now. The form scrolls so you can keep working even when the keyboard is open.",
+                )
+            }
+
+            state.message?.let { message ->
+                item {
+                    InlineMessageCard(message = message)
+                }
+            }
+
+            item {
+                ManualAddShelfBookForm(
+                    state = state,
+                    onCancelAddBook = onCancelAddBook,
+                    onTitleChanged = onTitleChanged,
+                    onAuthorChanged = onAuthorChanged,
+                    onNotesChanged = onNotesChanged,
+                    onIsbnChanged = onIsbnChanged,
+                    onReadStatusChanged = onReadStatusChanged,
+                    onSaveBookClicked = onSaveBookClicked,
+                )
+            }
         }
     }
 }
 
 @Composable
 private fun ShelfHeader(
+    title: String,
+    supportingText: String? = null,
 ) {
     Column(
         verticalArrangement = Arrangement.spacedBy(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Text(
-            text = "Books you currently own",
+            text = title,
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.SemiBold,
         )
+        supportingText?.let { body ->
+            Text(
+                text = body,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
     }
 }
 
@@ -179,6 +260,24 @@ private fun ShelfFooter(
 }
 
 @Composable
+private fun InlineMessageCard(
+    message: String,
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+        ),
+    ) {
+        Text(
+            text = message,
+            modifier = Modifier.padding(16.dp),
+            color = MaterialTheme.colorScheme.onErrorContainer,
+            style = MaterialTheme.typography.bodyMedium,
+        )
+    }
+}
+
+@Composable
 private fun ExplanatoryCard(
     title: String,
     body: String,
@@ -206,9 +305,9 @@ private fun ExplanatoryCard(
     }
 }
 
-@OptIn(ExperimentalLayoutApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalLayoutApi::class)
 @Composable
-private fun ManualAddShelfBookCard(
+private fun ManualAddShelfBookForm(
     state: ShelfUiState,
     onCancelAddBook: () -> Unit,
     onTitleChanged: (String) -> Unit,
@@ -231,7 +330,9 @@ private fun ManualAddShelfBookCard(
             OutlinedTextField(
                 value = state.form.title,
                 onValueChange = onTitleChanged,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bringIntoViewOnFocus(),
                 label = { Text("Title") },
                 singleLine = true,
                 isError = state.form.titleError != null,
@@ -242,7 +343,9 @@ private fun ManualAddShelfBookCard(
             OutlinedTextField(
                 value = state.form.author,
                 onValueChange = onAuthorChanged,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bringIntoViewOnFocus(),
                 label = { Text("Author") },
                 singleLine = true,
                 supportingText = {
@@ -252,7 +355,9 @@ private fun ManualAddShelfBookCard(
             OutlinedTextField(
                 value = state.form.isbn,
                 onValueChange = onIsbnChanged,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bringIntoViewOnFocus(),
                 label = { Text("ISBN") },
                 singleLine = true,
                 isError = state.form.isbnError != null,
@@ -264,7 +369,9 @@ private fun ManualAddShelfBookCard(
             OutlinedTextField(
                 value = state.form.notes,
                 onValueChange = onNotesChanged,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .bringIntoViewOnFocus(),
                 label = { Text("Notes") },
                 minLines = 3,
                 supportingText = {
@@ -292,7 +399,9 @@ private fun ManualAddShelfBookCard(
                 }
             }
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .navigationBarsPadding(),
                 horizontalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 OutlinedButton(
@@ -384,3 +493,18 @@ private val ReadStatus.label: String
         ReadStatus.READING -> "Reading"
         ReadStatus.READ -> "Read"
     }
+
+@OptIn(ExperimentalFoundationApi::class)
+private fun Modifier.bringIntoViewOnFocus(): Modifier = composed {
+    val requester = remember { BringIntoViewRequester() }
+    val scope = rememberCoroutineScope()
+
+    bringIntoViewRequester(requester)
+        .onFocusChanged { focusState ->
+            if (focusState.isFocused) {
+                scope.launch {
+                    requester.bringIntoView()
+                }
+            }
+        }
+}
