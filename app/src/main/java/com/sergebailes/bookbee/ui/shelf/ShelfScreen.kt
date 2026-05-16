@@ -429,9 +429,6 @@ private fun ShelfBookCard(
 ) {
     Card(
         modifier = modifier,
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
-        ),
     ) {
         Column(
             modifier = Modifier.padding(12.dp),
