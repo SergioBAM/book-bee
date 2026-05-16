@@ -8,4 +8,8 @@ class BookBeeApplication : Application() {
     val database: BookBeeDatabase by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
         BookBeeDatabaseFactory.create(this)
     }
+
+    val appContainer: BookBeeAppContainer by lazy(LazyThreadSafetyMode.SYNCHRONIZED) {
+        BookBeeAppContainer(database)
+    }
 }

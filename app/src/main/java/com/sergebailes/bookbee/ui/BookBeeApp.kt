@@ -4,11 +4,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
@@ -23,6 +21,8 @@ import androidx.compose.material3.Tab
 import androidx.compose.material3.TabIndicatorScope
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -32,14 +32,20 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.sergebailes.bookbee.core.BookBeeSection
 import com.sergebailes.bookbee.core.BookBeeSections
+import com.sergebailes.bookbee.ui.shelf.ShelfScreen
+import com.sergebailes.bookbee.ui.shelf.ShelfViewModel
 import com.sergebailes.bookbee.ui.theme.BookBeeTheme
 import kotlinx.coroutines.launch
 
 @Composable
-fun BookBeeApp(modifier: Modifier = Modifier) {
+fun BookBeeApp(
+    shelfViewModel: ShelfViewModel,
+    modifier: Modifier = Modifier,
+) {
     val sections = BookBeeSections.all
     val pagerState = rememberPagerState(pageCount = { sections.size })
     val scope = rememberCoroutineScope()
+    val shelfUiState by shelfViewModel.uiState.collectAsState()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -70,18 +76,6 @@ fun BookBeeApp(modifier: Modifier = Modifier) {
                 }
             }
         },
-//        bottomBar = {
-//            Surface(
-//                modifier = Modifier.navigationBarsPadding(),
-//                tonalElevation = 1.dp
-//            ) {
-//                Spacer(
-//                    modifier = Modifier
-//                        .fillMaxWidth()
-//                        .height(28.dp)
-//                )
-//            }
-//        }
     ) { innerPadding ->
         HorizontalPager(
             state = pagerState,
@@ -89,10 +83,25 @@ fun BookBeeApp(modifier: Modifier = Modifier) {
                 .fillMaxSize()
                 .padding(innerPadding)
         ) { page ->
-            SectionPlaceholder(
-                section = sections[page],
-                modifier = Modifier.fillMaxSize()
-            )
+            when (page) {
+                0 -> ShelfScreen(
+                    state = shelfUiState,
+                    onAddBookClicked = shelfViewModel::onAddBookClicked,
+                    onCancelAddBook = shelfViewModel::onCancelAddBook,
+                    onTitleChanged = shelfViewModel::onTitleChanged,
+                    onAuthorChanged = shelfViewModel::onAuthorChanged,
+                    onNotesChanged = shelfViewModel::onNotesChanged,
+                    onIsbnChanged = shelfViewModel::onIsbnChanged,
+                    onReadStatusChanged = shelfViewModel::onReadStatusChanged,
+                    onSaveBookClicked = shelfViewModel::onSaveBookClicked,
+                    modifier = Modifier.fillMaxSize(),
+                )
+
+                else -> SectionPlaceholder(
+                    section = sections[page],
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
         }
     }
 }
@@ -206,8 +215,8 @@ private fun SectionTabIndicator(
 
 @Preview(showBackground = true)
 @Composable
-private fun BookBeeAppPreview() {
+private fun SectionPlaceholderPreview() {
     BookBeeTheme {
-        BookBeeApp()
+        SectionPlaceholder(section = BookBeeSections.all[1])
     }
 }
