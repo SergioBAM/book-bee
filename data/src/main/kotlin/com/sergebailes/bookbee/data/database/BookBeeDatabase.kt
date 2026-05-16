@@ -41,7 +41,7 @@ abstract class BookBeeDatabase : RoomDatabase() {
     abstract fun metadataLookupCacheDao(): MetadataLookupCacheDao
 
     companion object {
-        const val VERSION = 1
+        const val VERSION = 2
         const val DATABASE_NAME = "book-bee.db"
     }
 }

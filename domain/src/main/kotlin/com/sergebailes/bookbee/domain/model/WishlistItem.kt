@@ -8,11 +8,6 @@ data class WishlistItem(
     val userId: UUID,
     val bookId: UUID,
     val notes: String?,
-    val priority: Int?,
     val createdAt: Instant,
     val updatedAt: Instant,
-) {
-    init {
-        require(priority == null || priority > 0) { "priority must be greater than zero when provided" }
-    }
-}
+)

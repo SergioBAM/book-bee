@@ -21,4 +21,7 @@ interface BookDao {
 
     @Query("SELECT * FROM books WHERE userId = :userId ORDER BY createdAt DESC")
     suspend fun getByUserId(userId: UUID): List<BookEntity>
+
+    @Query("DELETE FROM books WHERE id = :id")
+    suspend fun deleteById(id: UUID)
 }

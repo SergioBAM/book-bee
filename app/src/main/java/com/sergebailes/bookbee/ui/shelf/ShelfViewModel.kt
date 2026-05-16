@@ -126,13 +126,13 @@ class ShelfViewModel(
                 )
             }.onSuccess { result ->
                 when (result) {
-                    CreateManualShelfBookResult.Success -> {
+                    is CreateManualShelfBookResult.Success -> {
                         mutableUiState.update {
                             it.copy(
                                 isSaving = false,
                                 isShowingAddForm = false,
                                 form = ManualShelfBookFormState(),
-                                message = null,
+                                message = result.message,
                             )
                         }
                     }

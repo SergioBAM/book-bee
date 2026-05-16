@@ -35,7 +35,6 @@ data class WishlistItemEntity(
     val userId: UUID,
     val bookId: UUID,
     val notes: String?,
-    val priority: Int?,
     val createdAt: Instant,
     val updatedAt: Instant,
 )

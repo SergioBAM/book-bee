@@ -9,6 +9,7 @@ import com.sergebailes.bookbee.data.database.dao.ShelfDao
 import com.sergebailes.bookbee.data.database.entity.OwnershipStatus
 import com.sergebailes.bookbee.data.repository.mapper.toDataModel
 import com.sergebailes.bookbee.data.repository.mapper.toDomainModel
+import com.sergebailes.bookbee.domain.isbn.ValidatedIsbn
 import com.sergebailes.bookbee.domain.model.Book
 import com.sergebailes.bookbee.domain.model.BookIdentifier
 import com.sergebailes.bookbee.domain.model.Ownership
@@ -53,6 +54,37 @@ class RoomShelfRepository(
             bookDao.insert(book.toDataModel())
             ownershipDao.insert(ownership.toDataModel())
             bookIdentifierDao.insertAll(identifiers.map(BookIdentifier::toDataModel))
+        }
+    }
+
+    override suspend fun createOwnershipForExistingBook(
+        book: Book,
+        ownership: Ownership,
+        identifiers: List<BookIdentifier>,
+    ) {
+        validateAggregate(
+            book = book,
+            ownership = ownership,
+            identifiers = identifiers,
+        )
+
+        database.withWriteTransaction {
+            check(bookDao.getById(book.id) != null) {
+                "Book with id ${book.id} does not exist"
+            }
+            check(
+                ownershipDao.getByUserIdAndBookId(
+                    userId = ownership.userId,
+                    bookId = ownership.bookId,
+                ).isEmpty()
+            ) {
+                "Ownership for book ${ownership.bookId} already exists"
+            }
+
+            bookDao.update(book.toDataModel())
+            bookIdentifierDao.deleteByBookId(book.id)
+            bookIdentifierDao.insertAll(identifiers.map(BookIdentifier::toDataModel))
+            ownershipDao.insert(ownership.toDataModel())
         }
     }
 
@@ -120,6 +152,29 @@ class RoomShelfRepository(
             bookId = bookId,
             status = OwnershipStatus.OWNED,
         )?.toDomainModel()
+    }
+
+    override suspend fun findOwnedBookByExactIsbn(
+        userId: UUID,
+        isbn: ValidatedIsbn,
+    ): ShelfBook? {
+        val matchingIdentifiers = bookIdentifierDao.findByTypeAndValue(
+            type = com.sergebailes.bookbee.data.database.entity.IdentifierType.valueOf(isbn.type.name),
+            value = isbn.value,
+        )
+
+        for (identifier in matchingIdentifiers) {
+            val shelfBook = shelfDao.getByUserIdAndBookIdAndStatus(
+                userId = userId,
+                bookId = identifier.bookId,
+                status = OwnershipStatus.OWNED,
+            )
+            if (shelfBook != null) {
+                return shelfBook.toDomainModel()
+            }
+        }
+
+        return null
     }
 
     private fun validateAggregate(

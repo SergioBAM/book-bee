@@ -35,17 +35,21 @@ import com.sergebailes.bookbee.core.BookBeeSections
 import com.sergebailes.bookbee.ui.shelf.ShelfScreen
 import com.sergebailes.bookbee.ui.shelf.ShelfViewModel
 import com.sergebailes.bookbee.ui.theme.BookBeeTheme
+import com.sergebailes.bookbee.ui.wishlist.WishlistScreen
+import com.sergebailes.bookbee.ui.wishlist.WishlistViewModel
 import kotlinx.coroutines.launch
 
 @Composable
 fun BookBeeApp(
     shelfViewModel: ShelfViewModel,
+    wishlistViewModel: WishlistViewModel,
     modifier: Modifier = Modifier,
 ) {
     val sections = BookBeeSections.all
     val pagerState = rememberPagerState(pageCount = { sections.size })
     val scope = rememberCoroutineScope()
     val shelfUiState by shelfViewModel.uiState.collectAsState()
+    val wishlistUiState by wishlistViewModel.uiState.collectAsState()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -94,6 +98,27 @@ fun BookBeeApp(
                     onIsbnChanged = shelfViewModel::onIsbnChanged,
                     onReadStatusChanged = shelfViewModel::onReadStatusChanged,
                     onSaveBookClicked = shelfViewModel::onSaveBookClicked,
+                    modifier = Modifier.fillMaxSize(),
+                )
+
+                2 -> WishlistScreen(
+                    state = wishlistUiState,
+                    onAddWishlistItemClicked = wishlistViewModel::onAddWishlistItemClicked,
+                    onEditWishlistItemClicked = wishlistViewModel::onEditWishlistItemClicked,
+                    onDeleteWishlistItemClicked = wishlistViewModel::onDeleteWishlistItemClicked,
+                    onMoveToShelfClicked = wishlistViewModel::onMoveToShelfClicked,
+                    onCancelForm = wishlistViewModel::onCancelForm,
+                    onTitleChanged = wishlistViewModel::onTitleChanged,
+                    onAuthorChanged = wishlistViewModel::onAuthorChanged,
+                    onIsbnChanged = wishlistViewModel::onIsbnChanged,
+                    onNotesChanged = wishlistViewModel::onNotesChanged,
+                    onSaveWishlistItemClicked = wishlistViewModel::onSaveWishlistItemClicked,
+                    onDismissOwnedOverlapConfirmation = wishlistViewModel::onDismissOwnedOverlapConfirmation,
+                    onConfirmOwnedOverlapClicked = wishlistViewModel::onConfirmOwnedOverlapClicked,
+                    onCancelShelfHandoff = wishlistViewModel::onCancelShelfHandoff,
+                    onShelfNotesChanged = wishlistViewModel::onShelfNotesChanged,
+                    onShelfReadStatusChanged = wishlistViewModel::onShelfReadStatusChanged,
+                    onConfirmMoveToShelfClicked = wishlistViewModel::onConfirmMoveToShelfClicked,
                     modifier = Modifier.fillMaxSize(),
                 )
 

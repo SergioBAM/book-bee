@@ -7,6 +7,7 @@ import com.sergebailes.bookbee.domain.model.Ownership
 import com.sergebailes.bookbee.domain.model.OwnershipStatus
 import com.sergebailes.bookbee.domain.model.ReadStatus
 import com.sergebailes.bookbee.domain.repository.ShelfRepository
+import com.sergebailes.bookbee.domain.repository.WishlistRepository
 import java.time.Instant
 import java.util.UUID
 
@@ -20,7 +21,9 @@ data class CreateManualShelfBookCommand(
 )
 
 sealed interface CreateManualShelfBookResult {
-    data object Success : CreateManualShelfBookResult
+    data class Success(
+        val message: String? = null,
+    ) : CreateManualShelfBookResult
 
     data class ValidationFailed(
         val titleError: String? = null,
@@ -30,6 +33,7 @@ sealed interface CreateManualShelfBookResult {
 
 class CreateManualShelfBookUseCase(
     private val shelfRepository: ShelfRepository,
+    private val wishlistRepository: WishlistRepository,
     private val clock: () -> Instant = Instant::now,
     private val idProvider: () -> UUID = UUID::randomUUID,
 ) {
@@ -50,7 +54,13 @@ class CreateManualShelfBookUseCase(
         }
 
         val now = clock()
-        val bookId = idProvider()
+        val matchingWishlistBook = validatedIsbn?.let { isbn ->
+            wishlistRepository.findWishlistBookByExactIsbn(
+                userId = command.userId,
+                isbn = isbn,
+            )
+        }
+        val bookId = matchingWishlistBook?.book?.id ?: idProvider()
         val book = Book(
             id = bookId,
             userId = command.userId,
@@ -62,7 +72,7 @@ class CreateManualShelfBookUseCase(
             publishedDate = null,
             pageCount = null,
             thumbnailUrl = null,
-            createdAt = now,
+            createdAt = matchingWishlistBook?.book?.createdAt ?: now,
             updatedAt = now,
         )
         val ownership = Ownership(
@@ -89,12 +99,25 @@ class CreateManualShelfBookUseCase(
             )
         } ?: emptyList()
 
-        shelfRepository.createBook(
+        if (matchingWishlistBook == null) {
+            shelfRepository.createBook(
+                book = book,
+                ownership = ownership,
+                identifiers = identifiers,
+            )
+
+            return CreateManualShelfBookResult.Success()
+        }
+
+        shelfRepository.createOwnershipForExistingBook(
             book = book,
             ownership = ownership,
             identifiers = identifiers,
         )
+        wishlistRepository.deleteWishlistItem(matchingWishlistBook.item.id)
 
-        return CreateManualShelfBookResult.Success
+        return CreateManualShelfBookResult.Success(
+            message = "\"${book.title}\" moved from Wishlist to Shelf.",
+        )
     }
 }

@@ -6,11 +6,15 @@ import com.sergebailes.bookbee.domain.model.Ownership
 import com.sergebailes.bookbee.domain.model.OwnershipStatus
 import com.sergebailes.bookbee.domain.model.ReadStatus
 import com.sergebailes.bookbee.domain.model.ShelfBook
+import com.sergebailes.bookbee.domain.model.WishlistBook
+import com.sergebailes.bookbee.domain.model.WishlistItem
 import com.sergebailes.bookbee.domain.repository.ShelfRepository
+import com.sergebailes.bookbee.domain.repository.WishlistRepository
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
+import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -21,8 +25,10 @@ class CreateManualShelfBookUseCaseTest {
     @Test
     fun `returns a validation error when title is blank`() = runBlocking {
         val repository = RecordingShelfRepository()
+        val wishlistRepository = RecordingWishlistRepository()
         val useCase = CreateManualShelfBookUseCase(
             shelfRepository = repository,
+            wishlistRepository = wishlistRepository,
             clock = { Instant.parse("2026-05-16T10:15:30Z") },
             idProvider = { UUID.randomUUID() },
         )
@@ -51,8 +57,10 @@ class CreateManualShelfBookUseCaseTest {
     @Test
     fun `returns a validation error when isbn is invalid`() = runBlocking {
         val repository = RecordingShelfRepository()
+        val wishlistRepository = RecordingWishlistRepository()
         val useCase = CreateManualShelfBookUseCase(
             shelfRepository = repository,
+            wishlistRepository = wishlistRepository,
             clock = { Instant.parse("2026-05-16T10:15:30Z") },
             idProvider = { UUID.randomUUID() },
         )
@@ -81,6 +89,7 @@ class CreateManualShelfBookUseCaseTest {
     @Test
     fun `creates an owned shelf record with MVP defaults when isbn is omitted`() = runBlocking {
         val repository = RecordingShelfRepository()
+        val wishlistRepository = RecordingWishlistRepository()
         val now = Instant.parse("2026-05-16T10:15:30Z")
         val ids = listOf(
             UUID.fromString("00000000-0000-0000-0000-000000000001"),
@@ -88,6 +97,7 @@ class CreateManualShelfBookUseCaseTest {
         ).iterator()
         val useCase = CreateManualShelfBookUseCase(
             shelfRepository = repository,
+            wishlistRepository = wishlistRepository,
             clock = { now },
             idProvider = { ids.next() },
         )
@@ -103,7 +113,7 @@ class CreateManualShelfBookUseCaseTest {
             )
         )
 
-        assertEquals(CreateManualShelfBookResult.Success, result)
+        assertEquals(CreateManualShelfBookResult.Success(), result)
         assertEquals("Dune", repository.createdBook?.title)
         assertEquals(listOf("Frank Herbert"), repository.createdBook?.authors)
         assertEquals(1, repository.createdOwnership?.quantity)
@@ -118,6 +128,7 @@ class CreateManualShelfBookUseCaseTest {
     @Test
     fun `stores a normalized isbn and explicit read status when provided`() = runBlocking {
         val repository = RecordingShelfRepository()
+        val wishlistRepository = RecordingWishlistRepository()
         val now = Instant.parse("2026-05-16T10:15:30Z")
         val ids = listOf(
             UUID.fromString("00000000-0000-0000-0000-000000000011"),
@@ -126,6 +137,7 @@ class CreateManualShelfBookUseCaseTest {
         ).iterator()
         val useCase = CreateManualShelfBookUseCase(
             shelfRepository = repository,
+            wishlistRepository = wishlistRepository,
             clock = { now },
             idProvider = { ids.next() },
         )
@@ -142,14 +154,87 @@ class CreateManualShelfBookUseCaseTest {
             )
         )
 
-        assertEquals(CreateManualShelfBookResult.Success, result)
+        assertEquals(CreateManualShelfBookResult.Success(), result)
         assertEquals(ReadStatus.READING, repository.createdOwnership?.readStatus)
         assertEquals(1, repository.createdIdentifiers.size)
         assertEquals("9780441478125", repository.createdIdentifiers.single().value)
     }
 
+    @Test
+    fun `reuses a wishlist book and removes the wishlist item when exact isbn becomes owned`() = runBlocking {
+        val repository = RecordingShelfRepository()
+        val userId = UUID.fromString("00000000-0000-0000-0000-000000000301")
+        val bookId = UUID.fromString("00000000-0000-0000-0000-000000000302")
+        val wishlistItemId = UUID.fromString("00000000-0000-0000-0000-000000000303")
+        val now = Instant.parse("2026-05-16T10:15:30Z")
+        val wishlistRepository = RecordingWishlistRepository(
+            wishlistBookByIsbn = WishlistBook(
+                item = WishlistItem(
+                    id = wishlistItemId,
+                    userId = userId,
+                    bookId = bookId,
+                    notes = "Gift idea",
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+                book = Book(
+                    id = bookId,
+                    userId = userId,
+                    title = "Dune",
+                    subtitle = null,
+                    authors = listOf("Frank Herbert"),
+                    description = null,
+                    publisher = null,
+                    publishedDate = null,
+                    pageCount = null,
+                    thumbnailUrl = null,
+                    createdAt = now,
+                    updatedAt = now,
+                ),
+                identifiers = listOf(
+                    BookIdentifier(
+                        id = UUID.fromString("00000000-0000-0000-0000-000000000304"),
+                        bookId = bookId,
+                        type = com.sergebailes.bookbee.domain.model.IdentifierType.ISBN_13,
+                        value = "9780441172719",
+                    )
+                ),
+            )
+        )
+        val ids = listOf(
+            UUID.fromString("00000000-0000-0000-0000-000000000305"),
+            UUID.fromString("00000000-0000-0000-0000-000000000306"),
+        ).iterator()
+        val useCase = CreateManualShelfBookUseCase(
+            shelfRepository = repository,
+            wishlistRepository = wishlistRepository,
+            clock = { now },
+            idProvider = { ids.next() },
+        )
+
+        val result = useCase(
+            CreateManualShelfBookCommand(
+                userId = userId,
+                title = "Dune",
+                author = "Frank Herbert",
+                notes = "Bought today",
+                isbn = "978-0-441-17271-9",
+            )
+        )
+
+        assertEquals(
+            CreateManualShelfBookResult.Success(
+                message = "\"Dune\" moved from Wishlist to Shelf.",
+            ),
+            result,
+        )
+        assertEquals(bookId, repository.createdExistingOwnershipBook?.id)
+        assertEquals(wishlistItemId, wishlistRepository.deletedWishlistItemId)
+    }
+
     private class RecordingShelfRepository : ShelfRepository {
         var createdBook: Book? = null
+        var createdExistingOwnershipBook: Book? = null
         var createdOwnership: Ownership? = null
         var createdIdentifiers: List<BookIdentifier> = emptyList()
 
@@ -159,6 +244,16 @@ class CreateManualShelfBookUseCaseTest {
             identifiers: List<BookIdentifier>,
         ) {
             createdBook = book
+            createdOwnership = ownership
+            createdIdentifiers = identifiers
+        }
+
+        override suspend fun createOwnershipForExistingBook(
+            book: Book,
+            ownership: Ownership,
+            identifiers: List<BookIdentifier>,
+        ) {
+            createdExistingOwnershipBook = book
             createdOwnership = ownership
             createdIdentifiers = identifiers
         }
@@ -180,5 +275,41 @@ class CreateManualShelfBookUseCaseTest {
             userId: UUID,
             bookId: UUID,
         ): ShelfBook? = null
+
+        override suspend fun findOwnedBookByExactIsbn(
+            userId: UUID,
+            isbn: com.sergebailes.bookbee.domain.isbn.ValidatedIsbn,
+        ): ShelfBook? = null
+    }
+
+    private class RecordingWishlistRepository(
+        private val wishlistBookByIsbn: WishlistBook? = null,
+    ) : WishlistRepository {
+        var deletedWishlistItemId: UUID? = null
+
+        override fun observeWishlistBooks(userId: UUID): Flow<List<WishlistBook>> {
+            return flowOf(wishlistBookByIsbn?.let(::listOf) ?: emptyList())
+        }
+
+        override suspend fun getWishlistBookById(
+            userId: UUID,
+            wishlistItemId: UUID,
+        ): WishlistBook? = wishlistBookByIsbn?.takeIf { it.item.id == wishlistItemId }
+
+        override suspend fun saveWishlistBook(
+            book: Book,
+            wishlistItem: WishlistItem,
+            identifiers: List<BookIdentifier>,
+        ) = Unit
+
+        override suspend fun deleteWishlistItem(wishlistItemId: UUID): WishlistBook? {
+            deletedWishlistItemId = wishlistItemId
+            return wishlistBookByIsbn?.takeIf { it.item.id == wishlistItemId }
+        }
+
+        override suspend fun findWishlistBookByExactIsbn(
+            userId: UUID,
+            isbn: com.sergebailes.bookbee.domain.isbn.ValidatedIsbn,
+        ): WishlistBook? = wishlistBookByIsbn
     }
 }

@@ -37,4 +37,7 @@ interface OwnershipDao {
         userId: UUID,
         bookId: UUID,
     ): List<OwnershipEntity>
+
+    @Query("SELECT COUNT(*) FROM ownership WHERE bookId = :bookId")
+    suspend fun countByBookId(bookId: UUID): Int
 }

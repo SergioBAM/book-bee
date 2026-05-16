@@ -7,12 +7,16 @@ import com.sergebailes.bookbee.data.database.entity.OwnershipEntity
 import com.sergebailes.bookbee.data.database.entity.OwnershipStatus
 import com.sergebailes.bookbee.data.database.entity.ReadStatus
 import com.sergebailes.bookbee.data.database.entity.UserProfileEntity
+import com.sergebailes.bookbee.data.database.entity.WishlistItemEntity
 import com.sergebailes.bookbee.data.database.relation.ShelfBookRelation
+import com.sergebailes.bookbee.data.database.relation.WishlistBookRelation
 import com.sergebailes.bookbee.domain.model.Book
 import com.sergebailes.bookbee.domain.model.BookIdentifier
 import com.sergebailes.bookbee.domain.model.Ownership
 import com.sergebailes.bookbee.domain.model.ShelfBook
 import com.sergebailes.bookbee.domain.model.UserProfile
+import com.sergebailes.bookbee.domain.model.WishlistBook
+import com.sergebailes.bookbee.domain.model.WishlistItem
 
 fun UserProfileEntity.toDomainModel(): UserProfile {
     return UserProfile(
@@ -125,5 +129,35 @@ fun ShelfBookRelation.toDomainModel(): ShelfBook {
         book = book.book.toDomainModel(),
         ownership = ownership.toDomainModel(),
         identifiers = book.identifiers.map(BookIdentifierEntity::toDomainModel),
+    )
+}
+
+fun WishlistItemEntity.toDomainModel(): WishlistItem {
+    return WishlistItem(
+        id = id,
+        userId = userId,
+        bookId = bookId,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+    )
+}
+
+fun WishlistItem.toDataModel(): WishlistItemEntity {
+    return WishlistItemEntity(
+        id = id,
+        userId = userId,
+        bookId = bookId,
+        notes = notes,
+        createdAt = createdAt,
+        updatedAt = updatedAt,
+    )
+}
+
+fun WishlistBookRelation.toDomainModel(): WishlistBook {
+    return WishlistBook(
+        item = wishlistItem.toDomainModel(),
+        book = book.toDomainModel(),
+        identifiers = identifiers.map(BookIdentifierEntity::toDomainModel),
     )
 }

@@ -20,8 +20,8 @@ object BookBeeSections {
         ),
         BookBeeSection(
             title = "Wishlist",
-            headline = "Books to revisit later.",
-            supportingText = "This section will hold books you want to track without adding them to the owned shelf."
+            headline = "Books you want without marking them owned.",
+            supportingText = "Wishlist keeps lightweight intent with notes, while Shelf stays the stronger truth once a book becomes yours."
         )
     )
 }

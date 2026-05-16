@@ -8,6 +8,7 @@ import androidx.lifecycle.ViewModelProvider
 import com.sergebailes.bookbee.ui.BookBeeApp
 import com.sergebailes.bookbee.ui.shelf.ShelfViewModel
 import com.sergebailes.bookbee.ui.theme.BookBeeTheme
+import com.sergebailes.bookbee.ui.wishlist.WishlistViewModel
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -17,11 +18,18 @@ class MainActivity : ComponentActivity() {
             this,
             ShelfViewModel.Factory(appContainer),
         )[ShelfViewModel::class.java]
+        val wishlistViewModel = ViewModelProvider(
+            this,
+            WishlistViewModel.Factory(appContainer),
+        )[WishlistViewModel::class.java]
 
         enableEdgeToEdge()
         setContent {
             BookBeeTheme {
-                BookBeeApp(shelfViewModel = shelfViewModel)
+                BookBeeApp(
+                    shelfViewModel = shelfViewModel,
+                    wishlistViewModel = wishlistViewModel,
+                )
             }
         }
     }
