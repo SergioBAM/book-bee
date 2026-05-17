@@ -18,7 +18,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.sergebailes.bookbee.domain.usecase.LibrarySearchBadge
@@ -30,7 +35,18 @@ fun LibrarySearchScreen(
     onQueryChanged: (String) -> Unit,
     onResultSelected: (LibrarySearchTarget) -> Unit,
     modifier: Modifier = Modifier,
+    isActive: Boolean = true,
 ) {
+    val searchFocusRequester = remember { FocusRequester() }
+    val keyboardController = LocalSoftwareKeyboardController.current
+
+    LaunchedEffect(isActive) {
+        if (isActive) {
+            searchFocusRequester.requestFocus()
+            keyboardController?.show()
+        }
+    }
+
     LazyColumn(
         modifier = modifier
             .fillMaxSize(),
@@ -46,7 +62,9 @@ fun LibrarySearchScreen(
             OutlinedTextField(
                 value = state.query,
                 onValueChange = onQueryChanged,
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .focusRequester(searchFocusRequester),
                 label = { Text("Search Shelf and Wishlist") },
                 singleLine = true,
             )

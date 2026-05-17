@@ -204,6 +204,8 @@ fun BookBeeApp(
                                 }
                             },
                             modifier = Modifier.fillMaxSize(),
+                            isActive = pagerState.currentPage == page &&
+                                secondaryDestination == null,
                         )
 
                         else -> SectionPlaceholder(
