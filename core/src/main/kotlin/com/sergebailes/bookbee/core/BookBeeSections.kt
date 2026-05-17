@@ -24,9 +24,9 @@ object BookBeeSections {
             supportingText = "Wishlist keeps lightweight intent with notes, while Shelf stays the stronger truth once a book becomes yours."
         ),
         BookBeeSection(
-            title = "History",
-            headline = "Books you owned before live here.",
-            supportingText = "History keeps archived ownership separate so old records do not pollute current ownership checks."
+            title = "Search",
+            headline = "Find active books quickly.",
+            supportingText = "Search checks only current Shelf and Wishlist records so archived books do not distract from shopping decisions."
         )
     )
 }

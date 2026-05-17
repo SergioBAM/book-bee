@@ -52,20 +52,13 @@ fun HistoryScreen(
         verticalArrangement = Arrangement.spacedBy(16.dp),
     ) {
         item {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "History",
-                    style = MaterialTheme.typography.headlineMedium,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                OutlinedTextField(
-                    value = state.query,
-                    onValueChange = onQueryChanged,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text("Search History") },
-                    singleLine = true,
-                )
-            }
+            OutlinedTextField(
+                value = state.query,
+                onValueChange = onQueryChanged,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Search History") },
+                singleLine = true,
+            )
         }
 
         state.message?.let { message ->

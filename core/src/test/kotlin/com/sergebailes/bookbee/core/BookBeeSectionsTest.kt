@@ -7,7 +7,7 @@ class BookBeeSectionsTest {
     @Test
     fun sectionsStayInExpectedOrder() {
         assertEquals(
-            listOf("Shelf", "Scan", "Wishlist", "History"),
+            listOf("Shelf", "Scan", "Wishlist", "Search"),
             BookBeeSections.all.map(BookBeeSection::title)
         )
     }

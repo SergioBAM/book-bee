@@ -5,9 +5,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.AssistChip
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -22,41 +25,72 @@ import com.sergebailes.bookbee.domain.usecase.LibrarySearchBadge
 import com.sergebailes.bookbee.domain.usecase.LibrarySearchTarget
 
 @Composable
-fun LibrarySearchSurface(
+fun LibrarySearchScreen(
     state: LibrarySearchUiState,
     onQueryChanged: (String) -> Unit,
     onResultSelected: (LibrarySearchTarget) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    Column(
+    LazyColumn(
         modifier = modifier
-            .fillMaxWidth()
-            .padding(horizontal = 16.dp, vertical = 8.dp),
+            .fillMaxSize(),
+        contentPadding = PaddingValues(
+            start = 24.dp,
+            top = 8.dp,
+            end = 24.dp,
+            bottom = 120.dp,
+        ),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        OutlinedTextField(
-            value = state.query,
-            onValueChange = onQueryChanged,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text("Search Shelf and Wishlist") },
-            singleLine = true,
-        )
-        if (state.query.isNotBlank()) {
-            if (state.results.isEmpty()) {
+        item {
+            OutlinedTextField(
+                value = state.query,
+                onValueChange = onQueryChanged,
+                modifier = Modifier.fillMaxWidth(),
+                label = { Text("Search Shelf and Wishlist") },
+                singleLine = true,
+            )
+        }
+        when {
+            state.query.isBlank() -> {
+                item {
+                    Text(
+                        text = "Search active Shelf and Wishlist records.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            state.results.isEmpty() -> {
+                item {
+                    Text(
+                        text = "No active Shelf or Wishlist matches.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
+            else -> {
+                items(
+                    count = state.results.size,
+                    key = { index -> state.results[index].bookId },
+                ) { index ->
+                    LibrarySearchResultRow(
+                        result = state.results[index],
+                        onResultSelected = onResultSelected,
+                    )
+                }
+            }
+        }
+        state.message?.let { message ->
+            item {
                 Text(
-                    text = "No active Shelf or Wishlist matches.",
+                    text = message,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    state.results.take(4).forEach { result ->
-                        LibrarySearchResultRow(
-                            result = result,
-                            onResultSelected = onResultSelected,
-                        )
-                    }
-                }
             }
         }
     }
