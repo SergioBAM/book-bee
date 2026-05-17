@@ -15,10 +15,7 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.imeNestedScroll
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -105,8 +102,7 @@ private fun ShelfBrowseLayout(
     Box(
         modifier = modifier.fillMaxSize(),
     ) {
-        LazyVerticalGrid(
-            columns = GridCells.Fixed(2),
+        LazyColumn(
             modifier = Modifier.fillMaxSize(),
             contentPadding = PaddingValues(
                 start = 24.dp,
@@ -115,22 +111,21 @@ private fun ShelfBrowseLayout(
                 bottom = 120.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            horizontalArrangement = Arrangement.spacedBy(16.dp),
         ) {
-            item(span = { GridItemSpan(maxLineSpan) }) {
+            item {
                 ShelfHeader(
                     title = "Books you currently own",
                 )
             }
 
             state.message?.let { message ->
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item {
                     InlineMessageCard(message = message)
                 }
             }
 
             state.copyFeedback?.let { feedback ->
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item {
                     ActionMessageCard(
                         message = feedback.message,
                         actionLabel = feedback.actionLabel,
@@ -140,7 +135,7 @@ private fun ShelfBrowseLayout(
             }
 
             state.archiveConfirmation?.let { confirmation ->
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item {
                     ArchiveConfirmationCard(
                         confirmation = confirmation,
                         onConfirmArchiveClicked = onConfirmArchiveClicked,
@@ -150,14 +145,14 @@ private fun ShelfBrowseLayout(
             }
 
             if (state.isLoading) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item {
                     ExplanatoryCard(
                         title = "Loading your shelf",
                         body = "Book Bee is preparing your local owned books so Shelf stays useful offline.",
                     )
                 }
             } else if (state.books.isEmpty()) {
-                item(span = { GridItemSpan(maxLineSpan) }) {
+                item {
                     ExplanatoryCard(
                         title = "No owned books yet",
                         body = "Shelf is the place for books you currently own. Start with a quick manual add, with ISBN optional and fully checked if you enter one.",
