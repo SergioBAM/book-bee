@@ -61,7 +61,9 @@ class CreateManualShelfBookUseCase(
             )
         }
         val bookId = matchingWishlistBook?.book?.id ?: idProvider()
-        val book = Book(
+        val book = matchingWishlistBook?.book?.copy(
+            updatedAt = now,
+        ) ?: Book(
             id = bookId,
             userId = command.userId,
             title = trimmedTitle,
@@ -72,7 +74,7 @@ class CreateManualShelfBookUseCase(
             publishedDate = null,
             pageCount = null,
             thumbnailUrl = null,
-            createdAt = matchingWishlistBook?.book?.createdAt ?: now,
+            createdAt = now,
             updatedAt = now,
         )
         val ownership = Ownership(
@@ -88,16 +90,19 @@ class CreateManualShelfBookUseCase(
             createdAt = now,
             updatedAt = now,
         )
+        val existingIdentifiers = matchingWishlistBook?.identifiers?.filter { it.bookId == bookId } ?: emptyList()
         val identifiers = validatedIsbn?.let { isbn ->
-            listOf(
-                BookIdentifier(
+            if (existingIdentifiers.any { it.type == isbn.type && it.value == isbn.value }) {
+                existingIdentifiers
+            } else {
+                existingIdentifiers + BookIdentifier(
                     id = idProvider(),
                     bookId = bookId,
                     type = isbn.type,
                     value = isbn.value,
                 )
-            )
-        } ?: emptyList()
+            }
+        } ?: existingIdentifiers
 
         if (matchingWishlistBook == null) {
             shelfRepository.createBook(

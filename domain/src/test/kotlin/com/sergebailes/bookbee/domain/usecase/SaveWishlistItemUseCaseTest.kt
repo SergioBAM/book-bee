@@ -106,18 +106,114 @@ class SaveWishlistItemUseCaseTest {
         assertEquals("9780441172719", wishlistRepository.savedIdentifiers.single().value)
     }
 
+    @Test
+    fun `preserves owned book title and authors when confirmed wishlist save is sparse`() = runBlocking {
+        val now = Instant.parse("2026-05-16T10:15:30Z")
+        val userId = UUID.fromString("00000000-0000-0000-0000-000000000521")
+        val ownedBook = ownedShelfBook(
+            userId = userId,
+            bookId = UUID.fromString("00000000-0000-0000-0000-000000000522"),
+            now = now,
+            title = "Dune: Deluxe Edition",
+            authors = listOf("Frank Herbert", "Brian Herbert"),
+        )
+        val shelfRepository = RecordingShelfRepository(ownedBook)
+        val wishlistRepository = RecordingWishlistRepository()
+        val ids = listOf(
+            UUID.fromString("00000000-0000-0000-0000-000000000523"),
+        ).iterator()
+        val useCase = SaveWishlistItemUseCase(
+            shelfRepository = shelfRepository,
+            wishlistRepository = wishlistRepository,
+            clock = { now },
+            idProvider = { ids.next() },
+        )
+
+        val result = useCase(
+            SaveWishlistItemCommand(
+                userId = userId,
+                title = "Dune",
+                author = "",
+                notes = "Buy a reading copy",
+                isbn = "978-0-441-17271-9",
+                allowOwnedOverlap = true,
+            )
+        )
+
+        assertEquals(
+            SaveWishlistItemResult.Success(
+                wishlistItemId = UUID.fromString("00000000-0000-0000-0000-000000000523"),
+            ),
+            result,
+        )
+        assertEquals("Dune: Deluxe Edition", wishlistRepository.savedBook?.title)
+        assertEquals(listOf("Frank Herbert", "Brian Herbert"), wishlistRepository.savedBook?.authors)
+    }
+
+    @Test
+    fun `reuses existing wishlist item when saving the same exact isbn again`() = runBlocking {
+        val now = Instant.parse("2026-05-16T10:15:30Z")
+        val userId = UUID.fromString("00000000-0000-0000-0000-000000000531")
+        val wishlistItemId = UUID.fromString("00000000-0000-0000-0000-000000000532")
+        val bookId = UUID.fromString("00000000-0000-0000-0000-000000000533")
+        val existingWishlistBook = wishlistBook(
+            userId = userId,
+            bookId = bookId,
+            wishlistItemId = wishlistItemId,
+            now = now,
+            title = "Dune",
+            authors = listOf("Frank Herbert"),
+            notes = "Original note",
+        )
+        val shelfRepository = RecordingShelfRepository()
+        val wishlistRepository = RecordingWishlistRepository(
+            wishlistBookByIsbn = existingWishlistBook,
+        )
+        val useCase = SaveWishlistItemUseCase(
+            shelfRepository = shelfRepository,
+            wishlistRepository = wishlistRepository,
+            clock = { now },
+            idProvider = {
+                throw AssertionError("No new ids should be needed when reusing the existing wishlist ISBN")
+            },
+        )
+
+        val result = useCase(
+            SaveWishlistItemCommand(
+                userId = userId,
+                title = "Dune",
+                author = "",
+                notes = "Updated note",
+                isbn = "978-0-441-17271-9",
+            )
+        )
+
+        assertEquals(
+            SaveWishlistItemResult.Success(wishlistItemId = wishlistItemId),
+            result,
+        )
+        assertEquals(bookId, wishlistRepository.savedBook?.id)
+        assertEquals(wishlistItemId, wishlistRepository.savedWishlistItem?.id)
+        assertEquals(bookId, wishlistRepository.savedWishlistItem?.bookId)
+        assertEquals("Updated note", wishlistRepository.savedWishlistItem?.notes)
+        assertEquals(now, wishlistRepository.savedWishlistItem?.createdAt)
+        assertEquals(listOf("Frank Herbert"), wishlistRepository.savedBook?.authors)
+    }
+
     private fun ownedShelfBook(
         userId: UUID,
         bookId: UUID,
         now: Instant,
+        title: String = "Dune",
+        authors: List<String> = listOf("Frank Herbert"),
     ): ShelfBook {
         return ShelfBook(
             book = Book(
                 id = bookId,
                 userId = userId,
-                title = "Dune",
+                title = title,
                 subtitle = null,
-                authors = listOf("Frank Herbert"),
+                authors = authors,
                 description = null,
                 publisher = null,
                 publishedDate = null,
@@ -142,6 +238,49 @@ class SaveWishlistItemUseCaseTest {
             identifiers = listOf(
                 BookIdentifier(
                     id = UUID.fromString("00000000-0000-0000-0000-000000000598"),
+                    bookId = bookId,
+                    type = IdentifierType.ISBN_13,
+                    value = "9780441172719",
+                )
+            ),
+        )
+    }
+
+    private fun wishlistBook(
+        userId: UUID,
+        bookId: UUID,
+        wishlistItemId: UUID,
+        now: Instant,
+        title: String,
+        authors: List<String>,
+        notes: String?,
+    ): WishlistBook {
+        return WishlistBook(
+            item = WishlistItem(
+                id = wishlistItemId,
+                userId = userId,
+                bookId = bookId,
+                notes = notes,
+                createdAt = now,
+                updatedAt = now,
+            ),
+            book = Book(
+                id = bookId,
+                userId = userId,
+                title = title,
+                subtitle = null,
+                authors = authors,
+                description = null,
+                publisher = null,
+                publishedDate = null,
+                pageCount = null,
+                thumbnailUrl = null,
+                createdAt = now,
+                updatedAt = now,
+            ),
+            identifiers = listOf(
+                BookIdentifier(
+                    id = UUID.fromString("00000000-0000-0000-0000-000000000597"),
                     bookId = bookId,
                     type = IdentifierType.ISBN_13,
                     value = "9780441172719",
@@ -189,7 +328,10 @@ class SaveWishlistItemUseCaseTest {
         ): ShelfBook? = exactOwnedBook
     }
 
-    private class RecordingWishlistRepository : WishlistRepository {
+    private class RecordingWishlistRepository(
+        private val wishlistBookById: WishlistBook? = null,
+        private val wishlistBookByIsbn: WishlistBook? = null,
+    ) : WishlistRepository {
         var savedBook: Book? = null
         var savedWishlistItem: WishlistItem? = null
         var savedIdentifiers: List<BookIdentifier> = emptyList()
@@ -199,7 +341,7 @@ class SaveWishlistItemUseCaseTest {
         override suspend fun getWishlistBookById(
             userId: UUID,
             wishlistItemId: UUID,
-        ): WishlistBook? = null
+        ): WishlistBook? = wishlistBookById?.takeIf { it.item.id == wishlistItemId }
 
         override suspend fun saveWishlistBook(
             book: Book,
@@ -216,6 +358,6 @@ class SaveWishlistItemUseCaseTest {
         override suspend fun findWishlistBookByExactIsbn(
             userId: UUID,
             isbn: ValidatedIsbn,
-        ): WishlistBook? = null
+        ): WishlistBook? = wishlistBookByIsbn
     }
 }

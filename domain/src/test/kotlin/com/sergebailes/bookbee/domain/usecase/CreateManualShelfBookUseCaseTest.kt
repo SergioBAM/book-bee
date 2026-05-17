@@ -232,6 +232,85 @@ class CreateManualShelfBookUseCaseTest {
         assertEquals(wishlistItemId, wishlistRepository.deletedWishlistItemId)
     }
 
+    @Test
+    fun `preserves wishlist book title and authors when exact isbn promotion form is sparse`() = runBlocking {
+        val repository = RecordingShelfRepository()
+        val userId = UUID.fromString("00000000-0000-0000-0000-000000000401")
+        val bookId = UUID.fromString("00000000-0000-0000-0000-000000000402")
+        val wishlistItemId = UUID.fromString("00000000-0000-0000-0000-000000000403")
+        val createdAt = Instant.parse("2026-05-15T10:15:30Z")
+        val now = Instant.parse("2026-05-16T10:15:30Z")
+        val wishlistRepository = RecordingWishlistRepository(
+            wishlistBookByIsbn = WishlistBook(
+                item = WishlistItem(
+                    id = wishlistItemId,
+                    userId = userId,
+                    bookId = bookId,
+                    notes = "Gift idea",
+                    createdAt = createdAt,
+                    updatedAt = createdAt,
+                ),
+                book = Book(
+                    id = bookId,
+                    userId = userId,
+                    title = "Dune: Deluxe Edition",
+                    subtitle = null,
+                    authors = listOf("Frank Herbert", "Brian Herbert"),
+                    description = null,
+                    publisher = null,
+                    publishedDate = null,
+                    pageCount = null,
+                    thumbnailUrl = null,
+                    createdAt = createdAt,
+                    updatedAt = createdAt,
+                ),
+                identifiers = listOf(
+                    BookIdentifier(
+                        id = UUID.fromString("00000000-0000-0000-0000-000000000404"),
+                        bookId = bookId,
+                        type = com.sergebailes.bookbee.domain.model.IdentifierType.ISBN_13,
+                        value = "9780441172719",
+                    )
+                ),
+            )
+        )
+        val ids = listOf(
+            UUID.fromString("00000000-0000-0000-0000-000000000405"),
+        ).iterator()
+        val useCase = CreateManualShelfBookUseCase(
+            shelfRepository = repository,
+            wishlistRepository = wishlistRepository,
+            clock = { now },
+            idProvider = { ids.next() },
+        )
+
+        val result = useCase(
+            CreateManualShelfBookCommand(
+                userId = userId,
+                title = "Dune",
+                author = "",
+                notes = "Bought today",
+                isbn = "978-0-441-17271-9",
+            )
+        )
+
+        assertEquals(
+            CreateManualShelfBookResult.Success(
+                message = "\"Dune: Deluxe Edition\" moved from Wishlist to Shelf.",
+            ),
+            result,
+        )
+        assertEquals("Dune: Deluxe Edition", repository.createdExistingOwnershipBook?.title)
+        assertEquals(
+            listOf("Frank Herbert", "Brian Herbert"),
+            repository.createdExistingOwnershipBook?.authors,
+        )
+        assertEquals(createdAt, repository.createdExistingOwnershipBook?.createdAt)
+        assertEquals(now, repository.createdExistingOwnershipBook?.updatedAt)
+        assertEquals("9780441172719", repository.createdIdentifiers.single().value)
+        assertEquals(wishlistItemId, wishlistRepository.deletedWishlistItemId)
+    }
+
     private class RecordingShelfRepository : ShelfRepository {
         var createdBook: Book? = null
         var createdExistingOwnershipBook: Book? = null

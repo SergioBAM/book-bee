@@ -74,6 +74,14 @@ class SaveWishlistItemUseCase(
             return SaveWishlistItemResult.WishlistItemNotFound
         }
 
+        val exactWishlistBook = validatedIsbn?.let { isbn ->
+            wishlistRepository.findWishlistBookByExactIsbn(
+                userId = command.userId,
+                isbn = isbn,
+            )
+        }
+        val targetWishlistBook = exactWishlistBook ?: existingWishlistBook
+
         val exactOwnedBook = validatedIsbn?.let { isbn ->
             shelfRepository.findOwnedBookByExactIsbn(
                 userId = command.userId,
@@ -83,7 +91,7 @@ class SaveWishlistItemUseCase(
 
         if (
             exactOwnedBook != null &&
-            exactOwnedBook.book.id != existingWishlistBook?.book?.id &&
+            exactOwnedBook.book.id != targetWishlistBook?.book?.id &&
             !command.allowOwnedOverlap
         ) {
             return SaveWishlistItemResult.RequiresOwnedOverlapConfirmation(
@@ -94,15 +102,13 @@ class SaveWishlistItemUseCase(
 
         val now = clock()
         val targetBook = when {
-            exactOwnedBook != null -> buildSharedOwnedBook(
-                ownedBook = exactOwnedBook.book,
-                title = trimmedTitle,
-                author = command.author,
+            exactOwnedBook != null -> preserveSharedBookMetadata(
+                book = exactOwnedBook.book,
                 updatedAt = now,
             )
 
-            existingWishlistBook != null -> buildSharedOwnedBook(
-                ownedBook = existingWishlistBook.book,
+            targetWishlistBook != null -> mergeWishlistFormMetadata(
+                book = targetWishlistBook.book,
                 title = trimmedTitle,
                 author = command.author,
                 updatedAt = now,
@@ -123,13 +129,13 @@ class SaveWishlistItemUseCase(
                 updatedAt = now,
             )
         }
-        val wishlistItemId = existingWishlistBook?.item?.id ?: idProvider()
+        val wishlistItemId = targetWishlistBook?.item?.id ?: idProvider()
         val identifiers = buildIdentifiers(
             bookId = targetBook.id,
             isbn = validatedIsbn,
             existingIdentifiers = when {
                 exactOwnedBook != null -> exactOwnedBook.identifiers
-                existingWishlistBook != null -> existingWishlistBook.identifiers
+                targetWishlistBook != null -> targetWishlistBook.identifiers
                 else -> emptyList()
             },
         )
@@ -138,7 +144,7 @@ class SaveWishlistItemUseCase(
             userId = command.userId,
             bookId = targetBook.id,
             notes = command.notes.trim().takeIf(String::isNotBlank),
-            createdAt = existingWishlistBook?.item?.createdAt ?: now,
+            createdAt = targetWishlistBook?.item?.createdAt ?: now,
             updatedAt = now,
         )
 
@@ -151,15 +157,22 @@ class SaveWishlistItemUseCase(
         return SaveWishlistItemResult.Success(wishlistItemId = wishlistItem.id)
     }
 
-    private fun buildSharedOwnedBook(
-        ownedBook: Book,
+    private fun preserveSharedBookMetadata(
+        book: Book,
+        updatedAt: Instant,
+    ): Book {
+        return book.copy(updatedAt = updatedAt)
+    }
+
+    private fun mergeWishlistFormMetadata(
+        book: Book,
         title: String,
         author: String,
         updatedAt: Instant,
     ): Book {
-        return ownedBook.copy(
+        return book.copy(
             title = title,
-            authors = author.trim().takeIf(String::isNotBlank)?.let(::listOf) ?: emptyList(),
+            authors = author.trim().takeIf(String::isNotBlank)?.let(::listOf) ?: book.authors,
             updatedAt = updatedAt,
         )
     }
@@ -169,17 +182,20 @@ class SaveWishlistItemUseCase(
         isbn: ValidatedIsbn?,
         existingIdentifiers: List<BookIdentifier>,
     ): List<BookIdentifier> {
+        val identifiersForBook = existingIdentifiers.filter { it.bookId == bookId }
         return when {
-            isbn != null -> listOf(
-                BookIdentifier(
+            isbn != null && identifiersForBook.none { it.type == isbn.type && it.value == isbn.value } -> {
+                identifiersForBook + BookIdentifier(
                     id = idProvider(),
                     bookId = bookId,
                     type = isbn.type,
                     value = isbn.value,
                 )
-            )
+            }
 
-            else -> existingIdentifiers.filter { it.bookId == bookId }
+            isbn != null -> identifiersForBook
+
+            else -> identifiersForBook
         }
     }
 }

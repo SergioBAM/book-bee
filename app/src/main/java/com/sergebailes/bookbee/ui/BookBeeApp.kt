@@ -23,7 +23,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -50,6 +53,7 @@ fun BookBeeApp(
     val scope = rememberCoroutineScope()
     val shelfUiState by shelfViewModel.uiState.collectAsState()
     val wishlistUiState by wishlistViewModel.uiState.collectAsState()
+    var isWishlistRowPointerActive by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
@@ -83,6 +87,7 @@ fun BookBeeApp(
     ) { innerPadding ->
         HorizontalPager(
             state = pagerState,
+            userScrollEnabled = !isWishlistRowPointerActive,
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
@@ -106,6 +111,8 @@ fun BookBeeApp(
                     onAddWishlistItemClicked = wishlistViewModel::onAddWishlistItemClicked,
                     onEditWishlistItemClicked = wishlistViewModel::onEditWishlistItemClicked,
                     onDeleteWishlistItemClicked = wishlistViewModel::onDeleteWishlistItemClicked,
+                    onUndoWishlistRemovalClicked = wishlistViewModel::onUndoWishlistRemovalClicked,
+                    onWishlistRemovalFeedbackDismissed = wishlistViewModel::onWishlistRemovalFeedbackDismissed,
                     onMoveToShelfClicked = wishlistViewModel::onMoveToShelfClicked,
                     onCancelForm = wishlistViewModel::onCancelForm,
                     onTitleChanged = wishlistViewModel::onTitleChanged,
@@ -119,6 +126,9 @@ fun BookBeeApp(
                     onShelfNotesChanged = wishlistViewModel::onShelfNotesChanged,
                     onShelfReadStatusChanged = wishlistViewModel::onShelfReadStatusChanged,
                     onConfirmMoveToShelfClicked = wishlistViewModel::onConfirmMoveToShelfClicked,
+                    onWishlistRowPointerActiveChanged = { isActive ->
+                        isWishlistRowPointerActive = isActive
+                    },
                     modifier = Modifier.fillMaxSize(),
                 )
 

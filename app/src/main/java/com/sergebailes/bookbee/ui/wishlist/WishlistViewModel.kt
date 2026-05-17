@@ -14,6 +14,7 @@ import com.sergebailes.bookbee.domain.usecase.DeleteWishlistItemUseCase
 import com.sergebailes.bookbee.domain.usecase.MoveWishlistItemToShelfCommand
 import com.sergebailes.bookbee.domain.usecase.MoveWishlistItemToShelfResult
 import com.sergebailes.bookbee.domain.usecase.MoveWishlistItemToShelfUseCase
+import com.sergebailes.bookbee.domain.usecase.RestoreWishlistItemResult
 import com.sergebailes.bookbee.domain.usecase.SaveWishlistItemCommand
 import com.sergebailes.bookbee.domain.usecase.SaveWishlistItemResult
 import com.sergebailes.bookbee.domain.usecase.SaveWishlistItemUseCase
@@ -57,6 +58,12 @@ data class OwnedOverlapConfirmationState(
     val authorLine: String?,
 )
 
+data class WishlistRemovalFeedback(
+    val id: Long,
+    val message: String,
+    val actionLabel: String,
+)
+
 data class WishlistUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
@@ -67,6 +74,7 @@ data class WishlistUiState(
     val shelfHandoff: WishlistShelfHandoffState? = null,
     val pendingOwnedOverlapConfirmation: OwnedOverlapConfirmationState? = null,
     val message: String? = null,
+    val removalFeedback: WishlistRemovalFeedback? = null,
 )
 
 class WishlistViewModel(
@@ -81,12 +89,15 @@ class WishlistViewModel(
     val uiState: StateFlow<WishlistUiState> = mutableUiState.asStateFlow()
 
     private var activeUserId: UUID? = null
+    private var pendingRemovedWishlistBook: WishlistBook? = null
+    private var nextRemovalFeedbackId = 0L
 
     init {
         loadWishlist()
     }
 
     fun onAddWishlistItemClicked() {
+        pendingRemovedWishlistBook = null
         mutableUiState.update {
             it.copy(
                 isShowingForm = true,
@@ -95,12 +106,14 @@ class WishlistViewModel(
                 pendingOwnedOverlapConfirmation = null,
                 form = WishlistFormState(),
                 message = null,
+                removalFeedback = null,
             )
         }
     }
 
     fun onEditWishlistItemClicked(wishlistItemId: UUID) {
         val item = mutableUiState.value.items.firstOrNull { it.id == wishlistItemId } ?: return
+        pendingRemovedWishlistBook = null
         mutableUiState.update {
             it.copy(
                 isShowingForm = true,
@@ -114,6 +127,7 @@ class WishlistViewModel(
                     notes = item.notes.orEmpty(),
                 ),
                 message = null,
+                removalFeedback = null,
             )
         }
     }
@@ -122,13 +136,67 @@ class WishlistViewModel(
         viewModelScope.launch {
             runCatching {
                 deleteWishlistItemUseCase(wishlistItemId)
-            }.onSuccess { message ->
+            }.onSuccess { deletedWishlistBook ->
+                if (deletedWishlistBook == null) {
+                    mutableUiState.update {
+                        it.copy(message = "Wishlist item could not be removed.")
+                    }
+                    return@launch
+                }
+
+                pendingRemovedWishlistBook = deletedWishlistBook
+                val feedback = WishlistRemovalFeedback(
+                    id = ++nextRemovalFeedbackId,
+                    message = "Wishlist item removed.",
+                    actionLabel = "Undo",
+                )
                 mutableUiState.update {
-                    it.copy(message = message ?: "Wishlist item could not be removed.")
+                    it.copy(
+                        message = null,
+                        removalFeedback = feedback,
+                    )
                 }
             }.onFailure {
                 mutableUiState.update { it.copy(message = "Wishlist item could not be removed.") }
             }
+        }
+    }
+
+    fun onUndoWishlistRemovalClicked() {
+        val removedWishlistBook = pendingRemovedWishlistBook ?: return
+        pendingRemovedWishlistBook = null
+        mutableUiState.update {
+            it.copy(
+                message = null,
+                removalFeedback = null,
+            )
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                deleteWishlistItemUseCase.restore(removedWishlistBook)
+            }.onSuccess { result ->
+                if (result == RestoreWishlistItemResult.AlreadyExistsForExactIsbn) {
+                    mutableUiState.update {
+                        it.copy(message = "Wishlist already contains this ISBN.")
+                    }
+                }
+            }.onFailure {
+                mutableUiState.update {
+                    it.copy(message = "Wishlist item could not be restored.")
+                }
+            }
+        }
+    }
+
+    fun onWishlistRemovalFeedbackDismissed(feedbackId: Long) {
+        if (mutableUiState.value.removalFeedback?.id != feedbackId) {
+            return
+        }
+
+        pendingRemovedWishlistBook = null
+        mutableUiState.update {
+            it.copy(removalFeedback = null)
         }
     }
 
@@ -141,6 +209,7 @@ class WishlistViewModel(
             return
         }
 
+        pendingRemovedWishlistBook = null
         mutableUiState.update {
             it.copy(
                 isShowingForm = false,
@@ -154,6 +223,7 @@ class WishlistViewModel(
                     notes = item.notes.orEmpty(),
                 ),
                 message = null,
+                removalFeedback = null,
             )
         }
     }
