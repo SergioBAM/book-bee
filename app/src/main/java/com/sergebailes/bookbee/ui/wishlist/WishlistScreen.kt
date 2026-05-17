@@ -38,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -55,6 +56,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import android.view.MotionEvent
 import com.sergebailes.bookbee.domain.model.ReadStatus
+import kotlinx.coroutines.launch
 
 @Composable
 fun WishlistScreen(
@@ -583,6 +585,7 @@ private fun WishlistBookCard(
     onPointerActiveChanged: (Boolean) -> Unit,
 ) {
     val dismissState = rememberSwipeToDismissBoxState()
+    val coroutineScope = rememberCoroutineScope()
 
     DisposableEffect(onPointerActiveChanged) {
         onDispose {
@@ -595,7 +598,10 @@ private fun WishlistBookCard(
         enableDismissFromStartToEnd = false,
         onDismiss = { value ->
             if (value == SwipeToDismissBoxValue.EndToStart) {
-                onDeleteClicked()
+                coroutineScope.launch {
+                    dismissState.reset()
+                    onDeleteClicked()
+                }
             }
         },
         modifier = Modifier
