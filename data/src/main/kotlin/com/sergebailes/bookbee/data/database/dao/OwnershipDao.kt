@@ -40,4 +40,7 @@ interface OwnershipDao {
 
     @Query("SELECT COUNT(*) FROM ownership WHERE bookId = :bookId")
     suspend fun countByBookId(bookId: UUID): Int
+
+    @Query("DELETE FROM ownership WHERE id = :id")
+    suspend fun deleteById(id: UUID)
 }

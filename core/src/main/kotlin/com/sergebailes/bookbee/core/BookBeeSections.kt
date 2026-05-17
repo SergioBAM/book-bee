@@ -22,6 +22,11 @@ object BookBeeSections {
             title = "Wishlist",
             headline = "Books you want without marking them owned.",
             supportingText = "Wishlist keeps lightweight intent with notes, while Shelf stays the stronger truth once a book becomes yours."
+        ),
+        BookBeeSection(
+            title = "History",
+            headline = "Books you owned before live here.",
+            supportingText = "History keeps archived ownership separate so old records do not pollute current ownership checks."
         )
     )
 }

@@ -11,9 +11,14 @@ import com.sergebailes.bookbee.domain.usecase.AddShelfCopyUseCase
 import com.sergebailes.bookbee.domain.usecase.ArchiveShelfBookUseCase
 import com.sergebailes.bookbee.domain.usecase.CreateManualShelfBookUseCase
 import com.sergebailes.bookbee.domain.usecase.DeleteWishlistItemUseCase
+import com.sergebailes.bookbee.domain.usecase.EvaluateManualIsbnScanUseCase
+import com.sergebailes.bookbee.domain.usecase.HardDeleteArchivedShelfBookUseCase
 import com.sergebailes.bookbee.domain.usecase.MoveWishlistItemToShelfUseCase
 import com.sergebailes.bookbee.domain.usecase.RemoveShelfCopyUseCase
+import com.sergebailes.bookbee.domain.usecase.RestoreArchivedShelfBookUseCase
 import com.sergebailes.bookbee.domain.usecase.SaveWishlistItemUseCase
+import com.sergebailes.bookbee.domain.usecase.SearchActiveLibraryUseCase
+import com.sergebailes.bookbee.domain.usecase.SearchHistoryUseCase
 import com.sergebailes.bookbee.domain.usecase.UndoAddShelfCopyUseCase
 
 class BookBeeAppContainer(
@@ -41,4 +46,15 @@ class BookBeeAppContainer(
     val undoAddShelfCopyUseCase = UndoAddShelfCopyUseCase(shelfRepository)
     val removeShelfCopyUseCase = RemoveShelfCopyUseCase(shelfRepository)
     val archiveShelfBookUseCase = ArchiveShelfBookUseCase(shelfRepository)
+    val restoreArchivedShelfBookUseCase = RestoreArchivedShelfBookUseCase(shelfRepository)
+    val hardDeleteArchivedShelfBookUseCase = HardDeleteArchivedShelfBookUseCase(shelfRepository)
+    val evaluateManualIsbnScanUseCase = EvaluateManualIsbnScanUseCase(
+        shelfRepository = shelfRepository,
+        wishlistRepository = wishlistRepository,
+    )
+    val searchActiveLibraryUseCase = SearchActiveLibraryUseCase(
+        shelfRepository = shelfRepository,
+        wishlistRepository = wishlistRepository,
+    )
+    val searchHistoryUseCase = SearchHistoryUseCase(shelfRepository)
 }

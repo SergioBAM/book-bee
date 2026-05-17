@@ -35,6 +35,13 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.sergebailes.bookbee.core.BookBeeSection
 import com.sergebailes.bookbee.core.BookBeeSections
+import com.sergebailes.bookbee.domain.usecase.LibrarySearchTarget
+import com.sergebailes.bookbee.ui.history.HistoryScreen
+import com.sergebailes.bookbee.ui.history.HistoryViewModel
+import com.sergebailes.bookbee.ui.scan.ScanScreen
+import com.sergebailes.bookbee.ui.scan.ScanViewModel
+import com.sergebailes.bookbee.ui.search.LibrarySearchSurface
+import com.sergebailes.bookbee.ui.search.LibrarySearchViewModel
 import com.sergebailes.bookbee.ui.shelf.ShelfScreen
 import com.sergebailes.bookbee.ui.shelf.ShelfViewModel
 import com.sergebailes.bookbee.ui.theme.BookBeeTheme
@@ -45,14 +52,20 @@ import kotlinx.coroutines.launch
 @Composable
 fun BookBeeApp(
     shelfViewModel: ShelfViewModel,
+    scanViewModel: ScanViewModel,
     wishlistViewModel: WishlistViewModel,
+    historyViewModel: HistoryViewModel,
+    librarySearchViewModel: LibrarySearchViewModel,
     modifier: Modifier = Modifier,
 ) {
     val sections = BookBeeSections.all
     val pagerState = rememberPagerState(pageCount = { sections.size })
     val scope = rememberCoroutineScope()
     val shelfUiState by shelfViewModel.uiState.collectAsState()
+    val scanUiState by scanViewModel.uiState.collectAsState()
     val wishlistUiState by wishlistViewModel.uiState.collectAsState()
+    val historyUiState by historyViewModel.uiState.collectAsState()
+    val librarySearchUiState by librarySearchViewModel.uiState.collectAsState()
     var isWishlistRowPointerActive by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -72,62 +85,106 @@ fun BookBeeApp(
             }
         },
     ) { innerPadding ->
-        HorizontalPager(
-            state = pagerState,
-            userScrollEnabled = !isWishlistRowPointerActive,
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-        ) { page ->
-            when (page) {
-                0 -> ShelfScreen(
-                    state = shelfUiState,
-                    onAddBookClicked = shelfViewModel::onAddBookClicked,
-                    onCancelAddBook = shelfViewModel::onCancelAddBook,
-                    onTitleChanged = shelfViewModel::onTitleChanged,
-                    onAuthorChanged = shelfViewModel::onAuthorChanged,
-                    onNotesChanged = shelfViewModel::onNotesChanged,
-                    onIsbnChanged = shelfViewModel::onIsbnChanged,
-                    onReadStatusChanged = shelfViewModel::onReadStatusChanged,
-                    onSaveBookClicked = shelfViewModel::onSaveBookClicked,
-                    onAddAnotherCopyClicked = shelfViewModel::onAddAnotherCopyClicked,
-                    onUndoAddAnotherCopyClicked = shelfViewModel::onUndoAddAnotherCopyClicked,
-                    onRemoveCopyClicked = shelfViewModel::onRemoveCopyClicked,
-                    onConfirmArchiveClicked = shelfViewModel::onConfirmArchiveClicked,
-                    onCancelArchiveClicked = shelfViewModel::onCancelArchiveClicked,
-                    modifier = Modifier.fillMaxSize(),
-                )
+        ) {
+            LibrarySearchSurface(
+                state = librarySearchUiState,
+                onQueryChanged = librarySearchViewModel::onQueryChanged,
+                onResultSelected = { target ->
+                    scope.launch {
+                        pagerState.animateScrollToPage(
+                            when (target) {
+                                LibrarySearchTarget.SHELF -> 0
+                                LibrarySearchTarget.WISHLIST -> 2
+                                LibrarySearchTarget.HISTORY -> 3
+                            }
+                        )
+                    }
+                },
+            )
+            HorizontalPager(
+                state = pagerState,
+                userScrollEnabled = !isWishlistRowPointerActive,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
+            ) { page ->
+                when (page) {
+                    0 -> ShelfScreen(
+                        state = shelfUiState,
+                        onAddBookClicked = shelfViewModel::onAddBookClicked,
+                        onCancelAddBook = shelfViewModel::onCancelAddBook,
+                        onTitleChanged = shelfViewModel::onTitleChanged,
+                        onAuthorChanged = shelfViewModel::onAuthorChanged,
+                        onNotesChanged = shelfViewModel::onNotesChanged,
+                        onIsbnChanged = shelfViewModel::onIsbnChanged,
+                        onReadStatusChanged = shelfViewModel::onReadStatusChanged,
+                        onSaveBookClicked = shelfViewModel::onSaveBookClicked,
+                        onAddAnotherCopyClicked = shelfViewModel::onAddAnotherCopyClicked,
+                        onUndoAddAnotherCopyClicked = shelfViewModel::onUndoAddAnotherCopyClicked,
+                        onRemoveCopyClicked = shelfViewModel::onRemoveCopyClicked,
+                        onConfirmArchiveClicked = shelfViewModel::onConfirmArchiveClicked,
+                        onCancelArchiveClicked = shelfViewModel::onCancelArchiveClicked,
+                        modifier = Modifier.fillMaxSize(),
+                    )
 
-                2 -> WishlistScreen(
-                    state = wishlistUiState,
-                    onAddWishlistItemClicked = wishlistViewModel::onAddWishlistItemClicked,
-                    onEditWishlistItemClicked = wishlistViewModel::onEditWishlistItemClicked,
-                    onDeleteWishlistItemClicked = wishlistViewModel::onDeleteWishlistItemClicked,
-                    onUndoWishlistRemovalClicked = wishlistViewModel::onUndoWishlistRemovalClicked,
-                    onWishlistRemovalFeedbackDismissed = wishlistViewModel::onWishlistRemovalFeedbackDismissed,
-                    onMoveToShelfClicked = wishlistViewModel::onMoveToShelfClicked,
-                    onCancelForm = wishlistViewModel::onCancelForm,
-                    onTitleChanged = wishlistViewModel::onTitleChanged,
-                    onAuthorChanged = wishlistViewModel::onAuthorChanged,
-                    onIsbnChanged = wishlistViewModel::onIsbnChanged,
-                    onNotesChanged = wishlistViewModel::onNotesChanged,
-                    onSaveWishlistItemClicked = wishlistViewModel::onSaveWishlistItemClicked,
-                    onDismissOwnedOverlapConfirmation = wishlistViewModel::onDismissOwnedOverlapConfirmation,
-                    onConfirmOwnedOverlapClicked = wishlistViewModel::onConfirmOwnedOverlapClicked,
-                    onCancelShelfHandoff = wishlistViewModel::onCancelShelfHandoff,
-                    onShelfNotesChanged = wishlistViewModel::onShelfNotesChanged,
-                    onShelfReadStatusChanged = wishlistViewModel::onShelfReadStatusChanged,
-                    onConfirmMoveToShelfClicked = wishlistViewModel::onConfirmMoveToShelfClicked,
-                    onWishlistRowPointerActiveChanged = { isActive ->
-                        isWishlistRowPointerActive = isActive
-                    },
-                    modifier = Modifier.fillMaxSize(),
-                )
+                    1 -> ScanScreen(
+                        state = scanUiState,
+                        onIsbnChanged = scanViewModel::onIsbnChanged,
+                        onEvaluateManualIsbnClicked = scanViewModel::onEvaluateManualIsbnClicked,
+                        onCancelResultClicked = scanViewModel::onCancelResultClicked,
+                        modifier = Modifier.fillMaxSize(),
+                    )
 
-                else -> SectionPlaceholder(
-                    section = sections[page],
-                    modifier = Modifier.fillMaxSize()
-                )
+                    2 -> WishlistScreen(
+                        state = wishlistUiState,
+                        onAddWishlistItemClicked = wishlistViewModel::onAddWishlistItemClicked,
+                        onEditWishlistItemClicked = wishlistViewModel::onEditWishlistItemClicked,
+                        onDeleteWishlistItemClicked = wishlistViewModel::onDeleteWishlistItemClicked,
+                        onUndoWishlistRemovalClicked = wishlistViewModel::onUndoWishlistRemovalClicked,
+                        onWishlistRemovalFeedbackDismissed = wishlistViewModel::onWishlistRemovalFeedbackDismissed,
+                        onMoveToShelfClicked = wishlistViewModel::onMoveToShelfClicked,
+                        onCancelForm = wishlistViewModel::onCancelForm,
+                        onTitleChanged = wishlistViewModel::onTitleChanged,
+                        onAuthorChanged = wishlistViewModel::onAuthorChanged,
+                        onIsbnChanged = wishlistViewModel::onIsbnChanged,
+                        onNotesChanged = wishlistViewModel::onNotesChanged,
+                        onSaveWishlistItemClicked = wishlistViewModel::onSaveWishlistItemClicked,
+                        onDismissOwnedOverlapConfirmation = wishlistViewModel::onDismissOwnedOverlapConfirmation,
+                        onConfirmOwnedOverlapClicked = wishlistViewModel::onConfirmOwnedOverlapClicked,
+                        onCancelShelfHandoff = wishlistViewModel::onCancelShelfHandoff,
+                        onShelfNotesChanged = wishlistViewModel::onShelfNotesChanged,
+                        onShelfReadStatusChanged = wishlistViewModel::onShelfReadStatusChanged,
+                        onConfirmMoveToShelfClicked = wishlistViewModel::onConfirmMoveToShelfClicked,
+                        onWishlistRowPointerActiveChanged = { isActive ->
+                            isWishlistRowPointerActive = isActive
+                        },
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                    3 -> HistoryScreen(
+                        state = historyUiState,
+                        onQueryChanged = historyViewModel::onQueryChanged,
+                        onEditClicked = historyViewModel::onEditClicked,
+                        onEditNotesChanged = historyViewModel::onEditNotesChanged,
+                        onEditReadStatusChanged = historyViewModel::onEditReadStatusChanged,
+                        onCancelEditClicked = historyViewModel::onCancelEditClicked,
+                        onSaveEditClicked = historyViewModel::onSaveEditClicked,
+                        onRestoreClicked = historyViewModel::onRestoreClicked,
+                        onHardDeleteClicked = historyViewModel::onHardDeleteClicked,
+                        onCancelHardDeleteClicked = historyViewModel::onCancelHardDeleteClicked,
+                        onConfirmHardDeleteClicked = historyViewModel::onConfirmHardDeleteClicked,
+                        modifier = Modifier.fillMaxSize(),
+                    )
+
+                    else -> SectionPlaceholder(
+                        section = sections[page],
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
     }

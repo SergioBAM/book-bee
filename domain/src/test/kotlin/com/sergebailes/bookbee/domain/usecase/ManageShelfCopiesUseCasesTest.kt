@@ -8,6 +8,8 @@ import com.sergebailes.bookbee.domain.model.OwnershipStatus
 import com.sergebailes.bookbee.domain.model.ReadStatus
 import com.sergebailes.bookbee.domain.model.ShelfBook
 import com.sergebailes.bookbee.domain.repository.ShelfRepository
+import com.sergebailes.bookbee.domain.repository.HardDeleteArchivedOwnershipResult
+import com.sergebailes.bookbee.domain.repository.RestoreArchivedOwnershipResult
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -95,10 +97,97 @@ class ManageShelfCopiesUseCasesTest {
         assertEquals(Instant.parse("2026-05-17T10:00:00Z"), repository.updatedOwnership?.archivedAt)
     }
 
+    @Test
+    fun `restore archived shelf book preserves ownership context through repository restore`() = runBlocking {
+        val original = shelfBook(quantity = 1).let { shelfBook ->
+            shelfBook.copy(
+                ownership = shelfBook.ownership.copy(
+                    status = OwnershipStatus.ARCHIVED,
+                    archivedAt = Instant.parse("2026-05-16T10:00:00Z"),
+                    notes = "Keep this",
+                    readStatus = ReadStatus.READ,
+                )
+            )
+        }
+        val restored = original.copy(
+            ownership = original.ownership.copy(
+                status = OwnershipStatus.OWNED,
+                archivedAt = null,
+                updatedAt = Instant.parse("2026-05-17T10:00:00Z"),
+            )
+        )
+        val repository = RecordingShelfRepository(
+            shelfBook = original,
+            restoreResult = RestoreArchivedOwnershipResult.Success(restoredBook = restored),
+        )
+        val useCase = RestoreArchivedShelfBookUseCase(
+            shelfRepository = repository,
+            clock = { Instant.parse("2026-05-17T10:00:00Z") },
+        )
+
+        val result = useCase(original.ownership.id)
+
+        assertEquals(RestoreArchivedShelfBookResult.Success(title = "Dune"), result)
+        assertEquals(original.ownership.id, repository.restoredOwnershipId)
+        assertEquals(Instant.parse("2026-05-17T10:00:00Z"), repository.restoredAt)
+        assertEquals(original.ownership.dateAdded, restored.ownership.dateAdded)
+        assertEquals("Keep this", restored.ownership.notes)
+        assertEquals(ReadStatus.READ, restored.ownership.readStatus)
+    }
+
+    @Test
+    fun `restore archived shelf book reports exact isbn conflict`() = runBlocking {
+        val conflict = shelfBook(quantity = 1)
+        val repository = RecordingShelfRepository(
+            shelfBook = conflict,
+            restoreResult = RestoreArchivedOwnershipResult.ActiveExactIsbnConflict(conflict),
+        )
+        val useCase = RestoreArchivedShelfBookUseCase(repository)
+
+        val result = useCase(conflict.ownership.id)
+
+        assertEquals(
+            RestoreArchivedShelfBookResult.ActiveExactIsbnConflict(
+                title = "Dune",
+                authorLine = "Frank Herbert",
+            ),
+            result,
+        )
+    }
+
+    @Test
+    fun `hard delete archived shelf book exposes wishlist cleanup semantics`() = runBlocking {
+        val repository = RecordingShelfRepository(
+            shelfBook = shelfBook(quantity = 1),
+            hardDeleteResult = HardDeleteArchivedOwnershipResult.Success(
+                deletedBookId = UUID.fromString("00000000-0000-0000-0000-000000000902"),
+                deletedWishlistItemCount = 1,
+                deletedBookAggregate = true,
+            ),
+        )
+        val useCase = HardDeleteArchivedShelfBookUseCase(repository)
+
+        val result = useCase(UUID.fromString("00000000-0000-0000-0000-000000000903"))
+
+        assertEquals(
+            HardDeleteArchivedShelfBookResult.Success(
+                deletedWishlistItemCount = 1,
+                deletedBookAggregate = true,
+            ),
+            result,
+        )
+    }
+
     private class RecordingShelfRepository(
         private val shelfBook: ShelfBook,
+        private val restoreResult: RestoreArchivedOwnershipResult =
+            RestoreArchivedOwnershipResult.ArchivedOwnershipNotFound,
+        private val hardDeleteResult: HardDeleteArchivedOwnershipResult =
+            HardDeleteArchivedOwnershipResult.ArchivedOwnershipNotFound,
     ) : ShelfRepository {
         var updatedOwnership: Ownership? = null
+        var restoredOwnershipId: UUID? = null
+        var restoredAt: Instant? = null
 
         override suspend fun createBook(
             book: Book,
@@ -124,6 +213,19 @@ class ManageShelfCopiesUseCasesTest {
             ownershipId: UUID,
             archivedAt: Instant,
         ) = Unit
+
+        override suspend fun restoreArchivedOwnership(
+            ownershipId: UUID,
+            restoredAt: Instant,
+        ): RestoreArchivedOwnershipResult {
+            restoredOwnershipId = ownershipId
+            this.restoredAt = restoredAt
+            return restoreResult
+        }
+
+        override suspend fun hardDeleteArchivedOwnership(
+            ownershipId: UUID,
+        ): HardDeleteArchivedOwnershipResult = hardDeleteResult
 
         override fun observeOwnedBooks(userId: UUID): Flow<List<ShelfBook>> = emptyFlow()
 

@@ -32,6 +32,5 @@ This slice should deliver:
 
 ## Blocked by
 
-- [OW-03-wishlist-mvp-with-notes-and-shelf-handoff.md](/home/serge/code/personal/book-bee/tasks/OW-03-wishlist-mvp-with-notes-and-shelf-handoff.md)
 - [OW-04-history-lifecycle-archive-restore-hard-delete.md](/home/serge/code/personal/book-bee/tasks/OW-04-history-lifecycle-archive-restore-hard-delete.md)
 

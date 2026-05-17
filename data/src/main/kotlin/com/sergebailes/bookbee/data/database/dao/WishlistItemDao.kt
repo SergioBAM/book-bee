@@ -48,6 +48,9 @@ interface WishlistItemDao {
     @Query("SELECT COUNT(*) FROM wishlist_items WHERE bookId = :bookId")
     suspend fun countByBookId(bookId: UUID): Int
 
+    @Query("DELETE FROM wishlist_items WHERE bookId = :bookId")
+    suspend fun deleteByBookId(bookId: UUID): Int
+
     @Query("DELETE FROM wishlist_items WHERE id = :id")
     suspend fun deleteById(id: UUID)
 }

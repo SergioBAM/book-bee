@@ -6,6 +6,7 @@ import com.sergebailes.bookbee.data.database.dao.BookDao
 import com.sergebailes.bookbee.data.database.dao.BookIdentifierDao
 import com.sergebailes.bookbee.data.database.dao.OwnershipDao
 import com.sergebailes.bookbee.data.database.dao.ShelfDao
+import com.sergebailes.bookbee.data.database.dao.WishlistItemDao
 import com.sergebailes.bookbee.data.database.entity.OwnershipStatus
 import com.sergebailes.bookbee.data.repository.mapper.toDataModel
 import com.sergebailes.bookbee.data.repository.mapper.toDomainModel
@@ -17,6 +18,8 @@ import com.sergebailes.bookbee.domain.model.BookIdentifier
 import com.sergebailes.bookbee.domain.model.Ownership
 import com.sergebailes.bookbee.domain.model.ShelfBook
 import com.sergebailes.bookbee.domain.repository.ShelfRepository
+import com.sergebailes.bookbee.domain.repository.HardDeleteArchivedOwnershipResult
+import com.sergebailes.bookbee.domain.repository.RestoreArchivedOwnershipResult
 import java.time.Instant
 import java.util.UUID
 import kotlinx.coroutines.flow.Flow
@@ -28,6 +31,7 @@ class RoomShelfRepository(
     private val bookIdentifierDao: BookIdentifierDao = database.bookIdentifierDao(),
     private val ownershipDao: OwnershipDao = database.ownershipDao(),
     private val shelfDao: ShelfDao = database.shelfDao(),
+    private val wishlistItemDao: WishlistItemDao = database.wishlistItemDao(),
 ) : ShelfRepository {
     override suspend fun createBook(
         book: Book,
@@ -153,10 +157,85 @@ class RoomShelfRepository(
         )
     }
 
+    override suspend fun restoreArchivedOwnership(
+        ownershipId: UUID,
+        restoredAt: Instant,
+    ): RestoreArchivedOwnershipResult {
+        val existingOwnership = ownershipDao.getById(ownershipId)
+            ?.takeIf { it.status == OwnershipStatus.ARCHIVED }
+            ?: return RestoreArchivedOwnershipResult.ArchivedOwnershipNotFound
+
+        val archivedBook = shelfDao.getByOwnershipIdAndUserIdAndStatus(
+            ownershipId = ownershipId,
+            userId = existingOwnership.userId,
+            status = OwnershipStatus.ARCHIVED,
+        )?.toDomainModel()
+            ?: return RestoreArchivedOwnershipResult.ArchivedOwnershipNotFound
+
+        val activeConflict = findActiveExactIsbnConflict(
+            userId = existingOwnership.userId,
+            bookId = existingOwnership.bookId,
+            identifiers = archivedBook.identifiers,
+        )
+        if (activeConflict != null) {
+            return RestoreArchivedOwnershipResult.ActiveExactIsbnConflict(activeConflict)
+        }
+
+        val restoredOwnership = existingOwnership.copy(
+            status = OwnershipStatus.OWNED,
+            archivedAt = null,
+            updatedAt = restoredAt,
+        )
+
+        database.withWriteTransaction {
+            ownershipDao.update(restoredOwnership)
+            bookDao.update(archivedBook.book.copy(updatedAt = restoredAt).toDataModel())
+        }
+
+        return RestoreArchivedOwnershipResult.Success(
+            restoredBook = archivedBook.copy(
+                book = archivedBook.book.copy(updatedAt = restoredAt),
+                ownership = restoredOwnership.toDomainModel(),
+            )
+        )
+    }
+
+    override suspend fun hardDeleteArchivedOwnership(
+        ownershipId: UUID,
+    ): HardDeleteArchivedOwnershipResult {
+        val existingOwnership = ownershipDao.getById(ownershipId)
+            ?.takeIf { it.status == OwnershipStatus.ARCHIVED }
+            ?: return HardDeleteArchivedOwnershipResult.ArchivedOwnershipNotFound
+
+        var deletedWishlistItemCount = 0
+        var deletedBookAggregate = false
+
+        database.withWriteTransaction {
+            ownershipDao.deleteById(ownershipId)
+            deletedWishlistItemCount = wishlistItemDao.deleteByBookId(existingOwnership.bookId)
+            deletedBookAggregate = pruneBookIfUnreferenced(existingOwnership.bookId)
+        }
+
+        return HardDeleteArchivedOwnershipResult.Success(
+            deletedBookId = existingOwnership.bookId,
+            deletedWishlistItemCount = deletedWishlistItemCount,
+            deletedBookAggregate = deletedBookAggregate,
+        )
+    }
+
     override fun observeOwnedBooks(userId: UUID): Flow<List<ShelfBook>> {
         return shelfDao.observeByUserIdAndStatus(
             userId = userId,
             status = OwnershipStatus.OWNED,
+        ).map { shelfBooks ->
+            shelfBooks.map { it.toDomainModel() }
+        }
+    }
+
+    override fun observeArchivedBooks(userId: UUID): Flow<List<ShelfBook>> {
+        return shelfDao.observeHistoryByUserIdAndStatus(
+            userId = userId,
+            status = OwnershipStatus.ARCHIVED,
         ).map { shelfBooks ->
             shelfBooks.map { it.toDomainModel() }
         }
@@ -173,9 +252,43 @@ class RoomShelfRepository(
         )?.toDomainModel()
     }
 
+    override suspend fun getArchivedBookDetailById(
+        userId: UUID,
+        bookId: UUID,
+    ): ShelfBook? {
+        return shelfDao.getByUserIdAndBookIdAndStatus(
+            userId = userId,
+            bookId = bookId,
+            status = OwnershipStatus.ARCHIVED,
+        )?.toDomainModel()
+    }
+
     override suspend fun findOwnedBookByExactIsbn(
         userId: UUID,
         isbn: ValidatedIsbn,
+    ): ShelfBook? {
+        return findBookByExactIsbnAndStatus(
+            userId = userId,
+            isbn = isbn,
+            status = OwnershipStatus.OWNED,
+        )
+    }
+
+    override suspend fun findArchivedBookByExactIsbn(
+        userId: UUID,
+        isbn: ValidatedIsbn,
+    ): ShelfBook? {
+        return findBookByExactIsbnAndStatus(
+            userId = userId,
+            isbn = isbn,
+            status = OwnershipStatus.ARCHIVED,
+        )
+    }
+
+    private suspend fun findBookByExactIsbnAndStatus(
+        userId: UUID,
+        isbn: ValidatedIsbn,
+        status: OwnershipStatus,
     ): ShelfBook? {
         for (isbnForm in isbn.exactIdentityForms()) {
             val matchingIdentifiers = bookIdentifierDao.findByTypeAndValue(
@@ -187,7 +300,7 @@ class RoomShelfRepository(
                 val shelfBook = shelfDao.getByUserIdAndBookIdAndStatus(
                     userId = userId,
                     bookId = identifier.bookId,
-                    status = OwnershipStatus.OWNED,
+                    status = status,
                 )
                 if (shelfBook != null) {
                     return shelfBook.toDomainModel()
@@ -219,6 +332,21 @@ class RoomShelfRepository(
         bookId: UUID,
         identifiers: List<BookIdentifier>,
     ) {
+        val activeConflict = findActiveExactIsbnConflict(
+            userId = userId,
+            bookId = bookId,
+            identifiers = identifiers,
+        )
+        check(activeConflict == null) {
+            "Active ownership with exact ISBN already exists"
+        }
+    }
+
+    private suspend fun findActiveExactIsbnConflict(
+        userId: UUID,
+        bookId: UUID,
+        identifiers: List<BookIdentifier>,
+    ): ShelfBook? {
         for (identifier in identifiers) {
             if (
                 identifier.type != com.sergebailes.bookbee.domain.model.IdentifierType.ISBN_10 &&
@@ -243,11 +371,25 @@ class RoomShelfRepository(
                         bookId = matchingIdentifier.bookId,
                         status = OwnershipStatus.OWNED,
                     )
-                    check(duplicate == null) {
-                        "Active ownership with exact ISBN ${isbnForm.value} already exists"
+                    if (duplicate != null) {
+                        return duplicate.toDomainModel()
                     }
                 }
             }
         }
+
+        return null
+    }
+
+    private suspend fun pruneBookIfUnreferenced(bookId: UUID): Boolean {
+        val ownershipCount = ownershipDao.countByBookId(bookId)
+        val wishlistCount = wishlistItemDao.countByBookId(bookId)
+        if (ownershipCount == 0 && wishlistCount == 0) {
+            bookIdentifierDao.deleteByBookId(bookId)
+            bookDao.deleteById(bookId)
+            return true
+        }
+
+        return false
     }
 }

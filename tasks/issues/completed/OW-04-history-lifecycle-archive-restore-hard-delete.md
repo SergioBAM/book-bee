@@ -31,6 +31,4 @@ This slice should deliver:
 
 ## Blocked by
 
-- [OW-02-exact-isbn-identity-and-duplicate-prevention.md](/home/serge/code/personal/book-bee/tasks/OW-02-exact-isbn-identity-and-duplicate-prevention.md)
-- [OW-03-wishlist-mvp-with-notes-and-shelf-handoff.md](/home/serge/code/personal/book-bee/tasks/OW-03-wishlist-mvp-with-notes-and-shelf-handoff.md)
-
+None

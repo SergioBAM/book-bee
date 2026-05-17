@@ -32,8 +32,5 @@ This slice should not depend on camera integration yet. The goal is to prove the
 - [ ] Tests cover manual ISBN parity with scan-state rules and no-persistence-on-cancel behavior.
 
 ## Blocked by
-
-- [OW-02-exact-isbn-identity-and-duplicate-prevention.md](/home/serge/code/personal/book-bee/tasks/OW-02-exact-isbn-identity-and-duplicate-prevention.md)
-- [OW-03-wishlist-mvp-with-notes-and-shelf-handoff.md](/home/serge/code/personal/book-bee/tasks/OW-03-wishlist-mvp-with-notes-and-shelf-handoff.md)
 - [OW-04-history-lifecycle-archive-restore-hard-delete.md](/home/serge/code/personal/book-bee/tasks/OW-04-history-lifecycle-archive-restore-hard-delete.md)
 
