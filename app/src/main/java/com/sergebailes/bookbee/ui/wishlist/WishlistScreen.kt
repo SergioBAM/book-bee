@@ -55,6 +55,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import android.view.MotionEvent
+import androidx.compose.foundation.layout.fillMaxHeight
 import com.sergebailes.bookbee.domain.model.ReadStatus
 import kotlinx.coroutines.launch
 
@@ -515,7 +516,7 @@ private fun WishlistFooter(
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 12.dp),
+                .padding(horizontal = 24.dp, vertical = 24.dp),
             contentAlignment = Alignment.Center,
         ) {
             Button(

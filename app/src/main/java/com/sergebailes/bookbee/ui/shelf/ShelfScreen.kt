@@ -237,14 +237,11 @@ private fun ShelfFooter(
     Surface(
         modifier = modifier
             .fillMaxWidth()
-            .navigationBarsPadding()
-        //shadowElevation = 8.dp,
-        //tonalElevation = 3.dp,
     ) {
         Box(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 24.dp, vertical = 12.dp),
+                .padding(horizontal = 24.dp, vertical = 24.dp),
             contentAlignment = Alignment.Center,
         ) {
             Button(
