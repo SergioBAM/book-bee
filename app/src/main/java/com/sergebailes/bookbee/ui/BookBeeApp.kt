@@ -7,8 +7,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -57,31 +57,18 @@ fun BookBeeApp(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        topBar = {
+        bottomBar = {
             Surface(shadowElevation = 4.dp) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .statusBarsPadding()
-                        .padding(top = 8.dp, bottom = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(2.dp)
-                ) {
-                    Text(
-                        text = "Book Bee",
-                        modifier = Modifier.align(Alignment.CenterHorizontally),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.SemiBold
-                    )
-                    SectionTabRow(
-                        sections = sections,
-                        selectedPage = pagerState.currentPage,
-                        onSectionSelected = { index ->
-                            scope.launch {
-                                pagerState.animateScrollToPage(index)
-                            }
+                SectionTabRow(
+                    sections = sections,
+                    selectedPage = pagerState.currentPage,
+                    onSectionSelected = { index ->
+                        scope.launch {
+                            pagerState.animateScrollToPage(index)
                         }
-                    )
-                }
+                    },
+                    modifier = Modifier.navigationBarsPadding()
+                )
             }
         },
     ) { innerPadding ->
@@ -236,10 +223,11 @@ private fun SectionTabIndicator(
                 }
             )
             .padding(bottom = 8.dp)
+            .padding(top = 8.dp)
     ) {
         Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
+                .align(Alignment.TopCenter)
                 .width(indicatorWidth)
                 .height(6.dp)
                 .clip(RoundedCornerShape(999.dp))
