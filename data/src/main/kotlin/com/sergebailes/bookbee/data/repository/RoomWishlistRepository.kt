@@ -9,6 +9,7 @@ import com.sergebailes.bookbee.data.database.dao.WishlistItemDao
 import com.sergebailes.bookbee.data.repository.mapper.toDataModel
 import com.sergebailes.bookbee.data.repository.mapper.toDomainModel
 import com.sergebailes.bookbee.domain.isbn.ValidatedIsbn
+import com.sergebailes.bookbee.domain.isbn.exactIdentityForms
 import com.sergebailes.bookbee.domain.model.Book
 import com.sergebailes.bookbee.domain.model.BookIdentifier
 import com.sergebailes.bookbee.domain.model.WishlistBook
@@ -93,18 +94,20 @@ class RoomWishlistRepository(
         userId: UUID,
         isbn: ValidatedIsbn,
     ): WishlistBook? {
-        val matchingIdentifiers = bookIdentifierDao.findByTypeAndValue(
-            type = com.sergebailes.bookbee.data.database.entity.IdentifierType.valueOf(isbn.type.name),
-            value = isbn.value,
-        )
-
-        for (identifier in matchingIdentifiers) {
-            val relation = wishlistItemDao.getRelationByUserIdAndBookId(
-                userId = userId,
-                bookId = identifier.bookId,
+        for (isbnForm in isbn.exactIdentityForms()) {
+            val matchingIdentifiers = bookIdentifierDao.findByTypeAndValue(
+                type = com.sergebailes.bookbee.data.database.entity.IdentifierType.valueOf(isbnForm.type.name),
+                value = isbnForm.value,
             )
-            if (relation != null) {
-                return relation.toDomainModel()
+
+            for (identifier in matchingIdentifiers) {
+                val relation = wishlistItemDao.getRelationByUserIdAndBookId(
+                    userId = userId,
+                    bookId = identifier.bookId,
+                )
+                if (relation != null) {
+                    return relation.toDomainModel()
+                }
             }
         }
 

@@ -103,7 +103,13 @@ class SaveWishlistItemUseCaseTest {
         assertEquals(ownedBook.book.id, wishlistRepository.savedBook?.id)
         assertEquals(ownedBook.book.id, wishlistRepository.savedWishlistItem?.bookId)
         assertEquals("Gift copy", wishlistRepository.savedWishlistItem?.notes)
-        assertEquals("9780441172719", wishlistRepository.savedIdentifiers.single().value)
+        assertEquals(
+            listOf(
+                "9780441172719",
+                "0441172717",
+            ),
+            wishlistRepository.savedIdentifiers.map { it.value },
+        )
     }
 
     @Test
@@ -241,6 +247,12 @@ class SaveWishlistItemUseCaseTest {
                     bookId = bookId,
                     type = IdentifierType.ISBN_13,
                     value = "9780441172719",
+                ),
+                BookIdentifier(
+                    id = UUID.fromString("00000000-0000-0000-0000-000000000596"),
+                    bookId = bookId,
+                    type = IdentifierType.ISBN_10,
+                    value = "0441172717",
                 )
             ),
         )
@@ -284,6 +296,12 @@ class SaveWishlistItemUseCaseTest {
                     bookId = bookId,
                     type = IdentifierType.ISBN_13,
                     value = "9780441172719",
+                ),
+                BookIdentifier(
+                    id = UUID.fromString("00000000-0000-0000-0000-000000000595"),
+                    bookId = bookId,
+                    type = IdentifierType.ISBN_10,
+                    value = "0441172717",
                 )
             ),
         )

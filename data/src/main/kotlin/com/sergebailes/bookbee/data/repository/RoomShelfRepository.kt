@@ -10,6 +10,8 @@ import com.sergebailes.bookbee.data.database.entity.OwnershipStatus
 import com.sergebailes.bookbee.data.repository.mapper.toDataModel
 import com.sergebailes.bookbee.data.repository.mapper.toDomainModel
 import com.sergebailes.bookbee.domain.isbn.ValidatedIsbn
+import com.sergebailes.bookbee.domain.isbn.exactIdentityForms
+import com.sergebailes.bookbee.domain.isbn.parseIsbn
 import com.sergebailes.bookbee.domain.model.Book
 import com.sergebailes.bookbee.domain.model.BookIdentifier
 import com.sergebailes.bookbee.domain.model.Ownership
@@ -50,6 +52,11 @@ class RoomShelfRepository(
             ) {
                 "Ownership for book ${ownership.bookId} already exists"
             }
+            checkNoActiveExactIsbnDuplicate(
+                userId = ownership.userId,
+                bookId = book.id,
+                identifiers = identifiers,
+            )
 
             bookDao.insert(book.toDataModel())
             ownershipDao.insert(ownership.toDataModel())
@@ -80,6 +87,11 @@ class RoomShelfRepository(
             ) {
                 "Ownership for book ${ownership.bookId} already exists"
             }
+            checkNoActiveExactIsbnDuplicate(
+                userId = ownership.userId,
+                bookId = book.id,
+                identifiers = identifiers,
+            )
 
             bookDao.update(book.toDataModel())
             bookIdentifierDao.deleteByBookId(book.id)
@@ -110,6 +122,13 @@ class RoomShelfRepository(
                 ).isNotEmpty()
             ) {
                 "Ownership for book ${ownership.bookId} does not exist"
+            }
+            if (ownership.status == com.sergebailes.bookbee.domain.model.OwnershipStatus.OWNED) {
+                checkNoActiveExactIsbnDuplicate(
+                    userId = ownership.userId,
+                    bookId = book.id,
+                    identifiers = identifiers,
+                )
             }
 
             bookDao.update(book.toDataModel())
@@ -158,19 +177,21 @@ class RoomShelfRepository(
         userId: UUID,
         isbn: ValidatedIsbn,
     ): ShelfBook? {
-        val matchingIdentifiers = bookIdentifierDao.findByTypeAndValue(
-            type = com.sergebailes.bookbee.data.database.entity.IdentifierType.valueOf(isbn.type.name),
-            value = isbn.value,
-        )
-
-        for (identifier in matchingIdentifiers) {
-            val shelfBook = shelfDao.getByUserIdAndBookIdAndStatus(
-                userId = userId,
-                bookId = identifier.bookId,
-                status = OwnershipStatus.OWNED,
+        for (isbnForm in isbn.exactIdentityForms()) {
+            val matchingIdentifiers = bookIdentifierDao.findByTypeAndValue(
+                type = com.sergebailes.bookbee.data.database.entity.IdentifierType.valueOf(isbnForm.type.name),
+                value = isbnForm.value,
             )
-            if (shelfBook != null) {
-                return shelfBook.toDomainModel()
+
+            for (identifier in matchingIdentifiers) {
+                val shelfBook = shelfDao.getByUserIdAndBookIdAndStatus(
+                    userId = userId,
+                    bookId = identifier.bookId,
+                    status = OwnershipStatus.OWNED,
+                )
+                if (shelfBook != null) {
+                    return shelfBook.toDomainModel()
+                }
             }
         }
 
@@ -190,6 +211,43 @@ class RoomShelfRepository(
         }
         require(identifiers.all { it.bookId == book.id }) {
             "All identifiers must belong to the provided book"
+        }
+    }
+
+    private suspend fun checkNoActiveExactIsbnDuplicate(
+        userId: UUID,
+        bookId: UUID,
+        identifiers: List<BookIdentifier>,
+    ) {
+        for (identifier in identifiers) {
+            if (
+                identifier.type != com.sergebailes.bookbee.domain.model.IdentifierType.ISBN_10 &&
+                identifier.type != com.sergebailes.bookbee.domain.model.IdentifierType.ISBN_13
+            ) {
+                continue
+            }
+            val validatedIsbn = parseIsbn(identifier.value) ?: continue
+            for (isbnForm in validatedIsbn.exactIdentityForms()) {
+                val matchingIdentifiers = bookIdentifierDao.findByTypeAndValue(
+                    type = com.sergebailes.bookbee.data.database.entity.IdentifierType.valueOf(isbnForm.type.name),
+                    value = isbnForm.value,
+                )
+
+                for (matchingIdentifier in matchingIdentifiers) {
+                    if (matchingIdentifier.bookId == bookId) {
+                        continue
+                    }
+
+                    val duplicate = shelfDao.getByUserIdAndBookIdAndStatus(
+                        userId = userId,
+                        bookId = matchingIdentifier.bookId,
+                        status = OwnershipStatus.OWNED,
+                    )
+                    check(duplicate == null) {
+                        "Active ownership with exact ISBN ${isbnForm.value} already exists"
+                    }
+                }
+            }
         }
     }
 }

@@ -90,6 +90,11 @@ fun BookBeeApp(
                     onIsbnChanged = shelfViewModel::onIsbnChanged,
                     onReadStatusChanged = shelfViewModel::onReadStatusChanged,
                     onSaveBookClicked = shelfViewModel::onSaveBookClicked,
+                    onAddAnotherCopyClicked = shelfViewModel::onAddAnotherCopyClicked,
+                    onUndoAddAnotherCopyClicked = shelfViewModel::onUndoAddAnotherCopyClicked,
+                    onRemoveCopyClicked = shelfViewModel::onRemoveCopyClicked,
+                    onConfirmArchiveClicked = shelfViewModel::onConfirmArchiveClicked,
+                    onCancelArchiveClicked = shelfViewModel::onCancelArchiveClicked,
                     modifier = Modifier.fillMaxSize(),
                 )
 

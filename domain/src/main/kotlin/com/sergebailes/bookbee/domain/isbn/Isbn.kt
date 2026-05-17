@@ -8,6 +8,25 @@ data class ValidatedIsbn(
     val type: IdentifierType,
 )
 
+fun ValidatedIsbn.exactIdentityForms(): List<ValidatedIsbn> {
+    val pairedIsbn = pairedIsbn()
+    return if (pairedIsbn == null) {
+        listOf(this)
+    } else {
+        listOf(this, pairedIsbn)
+    }
+}
+
+fun ValidatedIsbn.pairedIsbn(): ValidatedIsbn? {
+    return when (type) {
+        IdentifierType.ISBN_10 -> toIsbn13()
+        IdentifierType.ISBN_13 -> toIsbn10()
+        IdentifierType.GOOGLE_BOOKS_ID,
+        IdentifierType.OPEN_LIBRARY_ID,
+        IdentifierType.OTHER -> null
+    }
+}
+
 fun parseIsbn(rawValue: String): ValidatedIsbn? {
     val normalizedValue = normalizeIsbn(rawValue)
 
@@ -50,4 +69,48 @@ private fun isValidIsbn13(value: String): Boolean {
     }.sum()
 
     return checksum % 10 == 0
+}
+
+private fun ValidatedIsbn.toIsbn13(): ValidatedIsbn? {
+    if (type != IdentifierType.ISBN_10) {
+        return null
+    }
+
+    val core = "978${value.take(9)}"
+    val checksum = calculateIsbn13CheckDigit(core)
+    return ValidatedIsbn(
+        value = "$core$checksum",
+        type = IdentifierType.ISBN_13,
+    )
+}
+
+private fun ValidatedIsbn.toIsbn10(): ValidatedIsbn? {
+    if (type != IdentifierType.ISBN_13 || !value.startsWith("978")) {
+        return null
+    }
+
+    val core = value.substring(startIndex = 3, endIndex = 12)
+    val checksum = calculateIsbn10CheckDigit(core)
+    return ValidatedIsbn(
+        value = "$core$checksum",
+        type = IdentifierType.ISBN_10,
+    )
+}
+
+private fun calculateIsbn13CheckDigit(firstTwelveDigits: String): Int {
+    val checksum = firstTwelveDigits.mapIndexed { index, character ->
+        val weight = if (index % 2 == 0) 1 else 3
+        character.digitToInt() * weight
+    }.sum()
+
+    return (10 - checksum % 10) % 10
+}
+
+private fun calculateIsbn10CheckDigit(firstNineDigits: String): Char {
+    val checksum = firstNineDigits.mapIndexed { index, character ->
+        (10 - index) * character.digitToInt()
+    }.sum()
+    val checkValue = (11 - checksum % 11) % 11
+
+    return if (checkValue == 10) 'X' else checkValue.digitToChar()
 }

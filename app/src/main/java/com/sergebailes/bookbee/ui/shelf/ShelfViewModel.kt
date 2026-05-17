@@ -9,9 +9,17 @@ import com.sergebailes.bookbee.domain.model.ReadStatus
 import com.sergebailes.bookbee.domain.model.ShelfBook
 import com.sergebailes.bookbee.domain.repository.ShelfRepository
 import com.sergebailes.bookbee.domain.repository.UserProfileRepository
+import com.sergebailes.bookbee.domain.usecase.AddShelfCopyResult
+import com.sergebailes.bookbee.domain.usecase.AddShelfCopyUseCase
+import com.sergebailes.bookbee.domain.usecase.ArchiveShelfBookResult
+import com.sergebailes.bookbee.domain.usecase.ArchiveShelfBookUseCase
 import com.sergebailes.bookbee.domain.usecase.CreateManualShelfBookCommand
 import com.sergebailes.bookbee.domain.usecase.CreateManualShelfBookResult
 import com.sergebailes.bookbee.domain.usecase.CreateManualShelfBookUseCase
+import com.sergebailes.bookbee.domain.usecase.RemoveShelfCopyResult
+import com.sergebailes.bookbee.domain.usecase.RemoveShelfCopyUseCase
+import com.sergebailes.bookbee.domain.usecase.UndoAddShelfCopyResult
+import com.sergebailes.bookbee.domain.usecase.UndoAddShelfCopyUseCase
 import java.util.UUID
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,12 +47,33 @@ data class ShelfBookListItem(
     val notes: String?,
 )
 
+data class ShelfDuplicateConflict(
+    val bookId: UUID,
+    val title: String,
+    val authorLine: String?,
+)
+
+data class ShelfCopyFeedback(
+    val id: Long,
+    val bookId: UUID,
+    val message: String,
+    val actionLabel: String,
+)
+
+data class ShelfArchiveConfirmation(
+    val bookId: UUID,
+    val title: String,
+)
+
 data class ShelfUiState(
     val isLoading: Boolean = true,
     val isSaving: Boolean = false,
     val isShowingAddForm: Boolean = false,
     val books: List<ShelfBookListItem> = emptyList(),
     val form: ManualShelfBookFormState = ManualShelfBookFormState(),
+    val duplicateConflict: ShelfDuplicateConflict? = null,
+    val copyFeedback: ShelfCopyFeedback? = null,
+    val archiveConfirmation: ShelfArchiveConfirmation? = null,
     val message: String? = null,
 )
 
@@ -52,11 +81,16 @@ class ShelfViewModel(
     private val userProfileRepository: UserProfileRepository,
     private val shelfRepository: ShelfRepository,
     private val createManualShelfBookUseCase: CreateManualShelfBookUseCase,
+    private val addShelfCopyUseCase: AddShelfCopyUseCase,
+    private val undoAddShelfCopyUseCase: UndoAddShelfCopyUseCase,
+    private val removeShelfCopyUseCase: RemoveShelfCopyUseCase,
+    private val archiveShelfBookUseCase: ArchiveShelfBookUseCase,
 ) : ViewModel() {
     private val mutableUiState = MutableStateFlow(ShelfUiState())
     val uiState: StateFlow<ShelfUiState> = mutableUiState.asStateFlow()
 
     private var activeUserId: UUID? = null
+    private var nextCopyFeedbackId = 0L
 
     init {
         loadShelf()
@@ -67,6 +101,8 @@ class ShelfViewModel(
             it.copy(
                 isShowingAddForm = true,
                 form = ManualShelfBookFormState(),
+                duplicateConflict = null,
+                archiveConfirmation = null,
                 message = null,
             )
         }
@@ -78,6 +114,7 @@ class ShelfViewModel(
                 isShowingAddForm = false,
                 isSaving = false,
                 form = ManualShelfBookFormState(),
+                duplicateConflict = null,
                 message = null,
             )
         }
@@ -132,6 +169,7 @@ class ShelfViewModel(
                                 isSaving = false,
                                 isShowingAddForm = false,
                                 form = ManualShelfBookFormState(),
+                                duplicateConflict = null,
                                 message = result.message,
                             )
                         }
@@ -141,10 +179,25 @@ class ShelfViewModel(
                         mutableUiState.update {
                             it.copy(
                                 isSaving = false,
+                                duplicateConflict = null,
                                 form = it.form.copy(
                                     titleError = result.titleError,
                                     isbnError = result.isbnError,
                                 ),
+                            )
+                        }
+                    }
+
+                    is CreateManualShelfBookResult.DuplicateActiveOwned -> {
+                        mutableUiState.update {
+                            it.copy(
+                                isSaving = false,
+                                duplicateConflict = ShelfDuplicateConflict(
+                                    bookId = result.bookId,
+                                    title = result.title,
+                                    authorLine = result.authorLine,
+                                ),
+                                message = null,
                             )
                         }
                     }
@@ -160,6 +213,180 @@ class ShelfViewModel(
         }
     }
 
+    fun onAddAnotherCopyClicked(bookId: UUID) {
+        val userId = activeUserId ?: run {
+            mutableUiState.update { it.copy(message = "Shelf is still loading.") }
+            return
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                addShelfCopyUseCase(userId = userId, bookId = bookId)
+            }.onSuccess { result ->
+                when (result) {
+                    is AddShelfCopyResult.Success -> {
+                        mutableUiState.update {
+                            it.copy(
+                                isShowingAddForm = false,
+                                form = ManualShelfBookFormState(),
+                                duplicateConflict = null,
+                                archiveConfirmation = null,
+                                copyFeedback = ShelfCopyFeedback(
+                                    id = nextCopyFeedbackId(),
+                                    bookId = bookId,
+                                    message = "Added another copy of \"${result.title}\".",
+                                    actionLabel = "Undo",
+                                ),
+                                message = null,
+                            )
+                        }
+                    }
+
+                    AddShelfCopyResult.ShelfBookNotFound -> {
+                        mutableUiState.update {
+                            it.copy(
+                                duplicateConflict = null,
+                                message = "Shelf book could not be found.",
+                            )
+                        }
+                    }
+                }
+            }.onFailure {
+                mutableUiState.update { it.copy(message = "Copy count could not be updated.") }
+            }
+        }
+    }
+
+    fun onUndoAddAnotherCopyClicked() {
+        val feedback = mutableUiState.value.copyFeedback ?: return
+        val userId = activeUserId ?: run {
+            mutableUiState.update { it.copy(message = "Shelf is still loading.") }
+            return
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                undoAddShelfCopyUseCase(userId = userId, bookId = feedback.bookId)
+            }.onSuccess { result ->
+                when (result) {
+                    is UndoAddShelfCopyResult.Success -> {
+                        mutableUiState.update {
+                            it.copy(
+                                copyFeedback = null,
+                                message = "Copy count restored for \"${result.title}\".",
+                            )
+                        }
+                    }
+
+                    UndoAddShelfCopyResult.CannotUndoSingleCopy,
+                    UndoAddShelfCopyResult.ShelfBookNotFound -> {
+                        mutableUiState.update {
+                            it.copy(
+                                copyFeedback = null,
+                                message = "Copy count could not be restored.",
+                            )
+                        }
+                    }
+                }
+            }.onFailure {
+                mutableUiState.update {
+                    it.copy(
+                        copyFeedback = null,
+                        message = "Copy count could not be restored.",
+                    )
+                }
+            }
+        }
+    }
+
+    fun onRemoveCopyClicked(bookId: UUID) {
+        val userId = activeUserId ?: run {
+            mutableUiState.update { it.copy(message = "Shelf is still loading.") }
+            return
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                removeShelfCopyUseCase(userId = userId, bookId = bookId)
+            }.onSuccess { result ->
+                when (result) {
+                    is RemoveShelfCopyResult.Success -> {
+                        mutableUiState.update {
+                            it.copy(
+                                archiveConfirmation = null,
+                                message = "Removed one copy of \"${result.title}\".",
+                            )
+                        }
+                    }
+
+                    is RemoveShelfCopyResult.ArchiveConfirmationRequired -> {
+                        mutableUiState.update {
+                            it.copy(
+                                archiveConfirmation = ShelfArchiveConfirmation(
+                                    bookId = bookId,
+                                    title = result.title,
+                                ),
+                                message = null,
+                            )
+                        }
+                    }
+
+                    RemoveShelfCopyResult.ShelfBookNotFound -> {
+                        mutableUiState.update { it.copy(message = "Shelf book could not be found.") }
+                    }
+                }
+            }.onFailure {
+                mutableUiState.update { it.copy(message = "Copy count could not be updated.") }
+            }
+        }
+    }
+
+    fun onConfirmArchiveClicked() {
+        val confirmation = mutableUiState.value.archiveConfirmation ?: return
+        val userId = activeUserId ?: run {
+            mutableUiState.update { it.copy(message = "Shelf is still loading.") }
+            return
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                archiveShelfBookUseCase(userId = userId, bookId = confirmation.bookId)
+            }.onSuccess { result ->
+                when (result) {
+                    is ArchiveShelfBookResult.Success -> {
+                        mutableUiState.update {
+                            it.copy(
+                                archiveConfirmation = null,
+                                copyFeedback = null,
+                                message = "\"${result.title}\" archived.",
+                            )
+                        }
+                    }
+
+                    ArchiveShelfBookResult.ShelfBookNotFound -> {
+                        mutableUiState.update {
+                            it.copy(
+                                archiveConfirmation = null,
+                                message = "Shelf book could not be found.",
+                            )
+                        }
+                    }
+                }
+            }.onFailure {
+                mutableUiState.update { it.copy(message = "Shelf book could not be archived.") }
+            }
+        }
+    }
+
+    fun onCancelArchiveClicked() {
+        mutableUiState.update {
+            it.copy(
+                archiveConfirmation = null,
+                message = null,
+            )
+        }
+    }
+
     private fun loadShelf() {
         viewModelScope.launch {
             runCatching {
@@ -170,7 +397,9 @@ class ShelfViewModel(
                         it.copy(
                             isLoading = false,
                             books = books.map { book -> book.toListItem() },
-                            message = null,
+                            archiveConfirmation = it.archiveConfirmation?.takeIf { confirmation ->
+                                books.any { book -> book.book.id == confirmation.bookId }
+                            },
                         )
                     }
                 }
@@ -189,8 +418,14 @@ class ShelfViewModel(
         mutableUiState.update { state ->
             state.copy(
                 form = state.form.transform(),
+                duplicateConflict = null,
             )
         }
+    }
+
+    private fun nextCopyFeedbackId(): Long {
+        nextCopyFeedbackId += 1
+        return nextCopyFeedbackId
     }
 
     private fun ShelfBook.toListItem(): ShelfBookListItem {
@@ -220,6 +455,10 @@ class ShelfViewModel(
                 userProfileRepository = appContainer.userProfileRepository,
                 shelfRepository = appContainer.shelfRepository,
                 createManualShelfBookUseCase = appContainer.createManualShelfBookUseCase,
+                addShelfCopyUseCase = appContainer.addShelfCopyUseCase,
+                undoAddShelfCopyUseCase = appContainer.undoAddShelfCopyUseCase,
+                removeShelfCopyUseCase = appContainer.removeShelfCopyUseCase,
+                archiveShelfBookUseCase = appContainer.archiveShelfBookUseCase,
             ) as T
         }
     }

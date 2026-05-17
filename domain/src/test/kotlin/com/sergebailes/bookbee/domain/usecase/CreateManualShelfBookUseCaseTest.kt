@@ -1,5 +1,6 @@
 package com.sergebailes.bookbee.domain.usecase
 
+import com.sergebailes.bookbee.domain.isbn.exactIdentityForms
 import com.sergebailes.bookbee.domain.model.Book
 import com.sergebailes.bookbee.domain.model.BookIdentifier
 import com.sergebailes.bookbee.domain.model.Ownership
@@ -134,6 +135,7 @@ class CreateManualShelfBookUseCaseTest {
             UUID.fromString("00000000-0000-0000-0000-000000000011"),
             UUID.fromString("00000000-0000-0000-0000-000000000012"),
             UUID.fromString("00000000-0000-0000-0000-000000000013"),
+            UUID.fromString("00000000-0000-0000-0000-000000000014"),
         ).iterator()
         val useCase = CreateManualShelfBookUseCase(
             shelfRepository = repository,
@@ -156,8 +158,56 @@ class CreateManualShelfBookUseCaseTest {
 
         assertEquals(CreateManualShelfBookResult.Success(), result)
         assertEquals(ReadStatus.READING, repository.createdOwnership?.readStatus)
-        assertEquals(1, repository.createdIdentifiers.size)
-        assertEquals("9780441478125", repository.createdIdentifiers.single().value)
+        assertEquals(
+            listOf(
+                "9780441478125",
+                "0441478123",
+            ),
+            repository.createdIdentifiers.map { it.value },
+        )
+    }
+
+    @Test
+    fun `returns duplicate active owned when an equivalent exact isbn is already on shelf`() = runBlocking {
+        val userId = UUID.fromString("00000000-0000-0000-0000-000000000201")
+        val ownedBook = shelfBook(
+            userId = userId,
+            bookId = UUID.fromString("00000000-0000-0000-0000-000000000202"),
+            title = "Dune",
+            authors = listOf("Frank Herbert"),
+            isbnType = com.sergebailes.bookbee.domain.model.IdentifierType.ISBN_10,
+            isbnValue = "0441172717",
+        )
+        val repository = RecordingShelfRepository(ownedBookByIsbn = ownedBook)
+        val wishlistRepository = RecordingWishlistRepository()
+        val useCase = CreateManualShelfBookUseCase(
+            shelfRepository = repository,
+            wishlistRepository = wishlistRepository,
+            clock = { Instant.parse("2026-05-16T10:15:30Z") },
+            idProvider = { UUID.randomUUID() },
+        )
+
+        val result = useCase(
+            CreateManualShelfBookCommand(
+                userId = userId,
+                title = "Dune",
+                author = "Frank Herbert",
+                notes = "",
+                isbn = "978-0-441-17271-9",
+            )
+        )
+
+        assertEquals(
+            CreateManualShelfBookResult.DuplicateActiveOwned(
+                bookId = ownedBook.book.id,
+                title = "Dune",
+                authorLine = "Frank Herbert",
+            ),
+            result,
+        )
+        assertNull(repository.createdBook)
+        assertNull(repository.createdOwnership)
+        assertTrue(repository.createdIdentifiers.isEmpty())
     }
 
     @Test
@@ -276,6 +326,7 @@ class CreateManualShelfBookUseCaseTest {
         )
         val ids = listOf(
             UUID.fromString("00000000-0000-0000-0000-000000000405"),
+            UUID.fromString("00000000-0000-0000-0000-000000000406"),
         ).iterator()
         val useCase = CreateManualShelfBookUseCase(
             shelfRepository = repository,
@@ -307,11 +358,19 @@ class CreateManualShelfBookUseCaseTest {
         )
         assertEquals(createdAt, repository.createdExistingOwnershipBook?.createdAt)
         assertEquals(now, repository.createdExistingOwnershipBook?.updatedAt)
-        assertEquals("9780441172719", repository.createdIdentifiers.single().value)
+        assertEquals(
+            listOf(
+                "9780441172719",
+                "0441172717",
+            ),
+            repository.createdIdentifiers.map { it.value },
+        )
         assertEquals(wishlistItemId, wishlistRepository.deletedWishlistItemId)
     }
 
-    private class RecordingShelfRepository : ShelfRepository {
+    private class RecordingShelfRepository(
+        private val ownedBookByIsbn: ShelfBook? = null,
+    ) : ShelfRepository {
         var createdBook: Book? = null
         var createdExistingOwnershipBook: Book? = null
         var createdOwnership: Ownership? = null
@@ -358,7 +417,16 @@ class CreateManualShelfBookUseCaseTest {
         override suspend fun findOwnedBookByExactIsbn(
             userId: UUID,
             isbn: com.sergebailes.bookbee.domain.isbn.ValidatedIsbn,
-        ): ShelfBook? = null
+        ): ShelfBook? {
+            return ownedBookByIsbn?.takeIf { shelfBook ->
+                shelfBook.ownership.userId == userId &&
+                    shelfBook.identifiers.any { identifier ->
+                        isbn.exactIdentityForms().any { isbnForm ->
+                            identifier.type == isbnForm.type && identifier.value == isbnForm.value
+                        }
+                    }
+            }
+        }
     }
 
     private class RecordingWishlistRepository(
@@ -390,5 +458,53 @@ class CreateManualShelfBookUseCaseTest {
             userId: UUID,
             isbn: com.sergebailes.bookbee.domain.isbn.ValidatedIsbn,
         ): WishlistBook? = wishlistBookByIsbn
+    }
+
+    private fun shelfBook(
+        userId: UUID,
+        bookId: UUID,
+        title: String,
+        authors: List<String>,
+        isbnType: com.sergebailes.bookbee.domain.model.IdentifierType,
+        isbnValue: String,
+    ): ShelfBook {
+        val now = Instant.parse("2026-05-15T10:15:30Z")
+        return ShelfBook(
+            book = Book(
+                id = bookId,
+                userId = userId,
+                title = title,
+                subtitle = null,
+                authors = authors,
+                description = null,
+                publisher = null,
+                publishedDate = null,
+                pageCount = null,
+                thumbnailUrl = null,
+                createdAt = now,
+                updatedAt = now,
+            ),
+            ownership = Ownership(
+                id = UUID.fromString("00000000-0000-0000-0000-000000000203"),
+                userId = userId,
+                bookId = bookId,
+                quantity = 1,
+                status = OwnershipStatus.OWNED,
+                readStatus = ReadStatus.UNREAD,
+                dateAdded = now,
+                archivedAt = null,
+                notes = null,
+                createdAt = now,
+                updatedAt = now,
+            ),
+            identifiers = listOf(
+                BookIdentifier(
+                    id = UUID.fromString("00000000-0000-0000-0000-000000000204"),
+                    bookId = bookId,
+                    type = isbnType,
+                    value = isbnValue,
+                )
+            ),
+        )
     }
 }

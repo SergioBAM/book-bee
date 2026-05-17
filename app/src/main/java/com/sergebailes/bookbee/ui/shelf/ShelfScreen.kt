@@ -43,6 +43,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.sergebailes.bookbee.domain.model.ReadStatus
+import java.util.UUID
 import kotlinx.coroutines.launch
 
 @Composable
@@ -56,6 +57,11 @@ fun ShelfScreen(
     onIsbnChanged: (String) -> Unit,
     onReadStatusChanged: (ReadStatus) -> Unit,
     onSaveBookClicked: () -> Unit,
+    onAddAnotherCopyClicked: (UUID) -> Unit,
+    onUndoAddAnotherCopyClicked: () -> Unit,
+    onRemoveCopyClicked: (UUID) -> Unit,
+    onConfirmArchiveClicked: () -> Unit,
+    onCancelArchiveClicked: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     if (state.isShowingAddForm) {
@@ -68,12 +74,18 @@ fun ShelfScreen(
             onIsbnChanged = onIsbnChanged,
             onReadStatusChanged = onReadStatusChanged,
             onSaveBookClicked = onSaveBookClicked,
+            onAddAnotherCopyClicked = onAddAnotherCopyClicked,
             modifier = modifier,
         )
     } else {
         ShelfBrowseLayout(
             state = state,
             onAddBookClicked = onAddBookClicked,
+            onUndoAddAnotherCopyClicked = onUndoAddAnotherCopyClicked,
+            onRemoveCopyClicked = onRemoveCopyClicked,
+            onAddAnotherCopyClicked = onAddAnotherCopyClicked,
+            onConfirmArchiveClicked = onConfirmArchiveClicked,
+            onCancelArchiveClicked = onCancelArchiveClicked,
             modifier = modifier,
         )
     }
@@ -83,6 +95,11 @@ fun ShelfScreen(
 private fun ShelfBrowseLayout(
     state: ShelfUiState,
     onAddBookClicked: () -> Unit,
+    onUndoAddAnotherCopyClicked: () -> Unit,
+    onRemoveCopyClicked: (UUID) -> Unit,
+    onAddAnotherCopyClicked: (UUID) -> Unit,
+    onConfirmArchiveClicked: () -> Unit,
+    onCancelArchiveClicked: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -112,6 +129,26 @@ private fun ShelfBrowseLayout(
                 }
             }
 
+            state.copyFeedback?.let { feedback ->
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    ActionMessageCard(
+                        message = feedback.message,
+                        actionLabel = feedback.actionLabel,
+                        onActionClicked = onUndoAddAnotherCopyClicked,
+                    )
+                }
+            }
+
+            state.archiveConfirmation?.let { confirmation ->
+                item(span = { GridItemSpan(maxLineSpan) }) {
+                    ArchiveConfirmationCard(
+                        confirmation = confirmation,
+                        onConfirmArchiveClicked = onConfirmArchiveClicked,
+                        onCancelArchiveClicked = onCancelArchiveClicked,
+                    )
+                }
+            }
+
             if (state.isLoading) {
                 item(span = { GridItemSpan(maxLineSpan) }) {
                     ExplanatoryCard(
@@ -133,6 +170,8 @@ private fun ShelfBrowseLayout(
                 ) { book ->
                     ShelfBookCard(
                         book = book,
+                        onRemoveCopyClicked = onRemoveCopyClicked,
+                        onAddAnotherCopyClicked = onAddAnotherCopyClicked,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
@@ -157,6 +196,7 @@ private fun ManualAddShelfLayout(
     onIsbnChanged: (String) -> Unit,
     onReadStatusChanged: (ReadStatus) -> Unit,
     onSaveBookClicked: () -> Unit,
+    onAddAnotherCopyClicked: (UUID) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -185,6 +225,15 @@ private fun ManualAddShelfLayout(
             state.message?.let { message ->
                 item {
                     InlineMessageCard(message = message)
+                }
+            }
+
+            state.duplicateConflict?.let { conflict ->
+                item {
+                    DuplicateConflictCard(
+                        conflict = conflict,
+                        onAddAnotherCopyClicked = onAddAnotherCopyClicked,
+                    )
                 }
             }
 
@@ -270,6 +319,119 @@ private fun InlineMessageCard(
             color = MaterialTheme.colorScheme.onErrorContainer,
             style = MaterialTheme.typography.bodyMedium,
         )
+    }
+}
+
+@Composable
+private fun ActionMessageCard(
+    message: String,
+    actionLabel: String,
+    onActionClicked: () -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = message,
+                modifier = Modifier.weight(1f),
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+            OutlinedButton(onClick = onActionClicked) {
+                Text(actionLabel)
+            }
+        }
+    }
+}
+
+@Composable
+private fun DuplicateConflictCard(
+    conflict: ShelfDuplicateConflict,
+    onAddAnotherCopyClicked: (UUID) -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.secondaryContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                text = "Already on Shelf",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = listOfNotNull(conflict.title, conflict.authorLine).joinToString(" - "),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer,
+            )
+            Button(
+                onClick = { onAddAnotherCopyClicked(conflict.bookId) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Add another copy")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ArchiveConfirmationCard(
+    confirmation: ShelfArchiveConfirmation,
+    onConfirmArchiveClicked: () -> Unit,
+    onCancelArchiveClicked: () -> Unit,
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.errorContainer,
+        ),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            Text(
+                text = "Archive \"${confirmation.title}\"?",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Text(
+                text = "Removing the last copy archives this Shelf record instead of saving quantity zero.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onErrorContainer,
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onCancelArchiveClicked,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Keep")
+                }
+                Button(
+                    onClick = onConfirmArchiveClicked,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("Archive")
+                }
+            }
+        }
     }
 }
 
@@ -419,6 +581,8 @@ private fun ManualAddShelfBookForm(
 @Composable
 private fun ShelfBookCard(
     book: ShelfBookListItem,
+    onRemoveCopyClicked: (UUID) -> Unit,
+    onAddAnotherCopyClicked: (UUID) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Card(
@@ -458,6 +622,23 @@ private fun ShelfBookCard(
                     text = notes,
                     style = MaterialTheme.typography.bodySmall,
                 )
+            }
+            Column(
+                modifier = Modifier.fillMaxWidth(),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                OutlinedButton(
+                    onClick = { onRemoveCopyClicked(book.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Remove copy")
+                }
+                Button(
+                    onClick = { onAddAnotherCopyClicked(book.id) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Add copy")
+                }
             }
         }
     }

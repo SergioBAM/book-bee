@@ -1,9 +1,8 @@
 package com.sergebailes.bookbee.domain.usecase
 
-import com.sergebailes.bookbee.domain.isbn.ValidatedIsbn
+import com.sergebailes.bookbee.domain.isbn.buildIsbnIdentifiers
 import com.sergebailes.bookbee.domain.isbn.parseIsbn
 import com.sergebailes.bookbee.domain.model.Book
-import com.sergebailes.bookbee.domain.model.BookIdentifier
 import com.sergebailes.bookbee.domain.model.WishlistItem
 import com.sergebailes.bookbee.domain.repository.ShelfRepository
 import com.sergebailes.bookbee.domain.repository.WishlistRepository
@@ -130,7 +129,7 @@ class SaveWishlistItemUseCase(
             )
         }
         val wishlistItemId = targetWishlistBook?.item?.id ?: idProvider()
-        val identifiers = buildIdentifiers(
+        val identifiers = buildIsbnIdentifiers(
             bookId = targetBook.id,
             isbn = validatedIsbn,
             existingIdentifiers = when {
@@ -138,6 +137,7 @@ class SaveWishlistItemUseCase(
                 targetWishlistBook != null -> targetWishlistBook.identifiers
                 else -> emptyList()
             },
+            idProvider = idProvider,
         )
         val wishlistItem = WishlistItem(
             id = wishlistItemId,
@@ -177,25 +177,4 @@ class SaveWishlistItemUseCase(
         )
     }
 
-    private fun buildIdentifiers(
-        bookId: UUID,
-        isbn: ValidatedIsbn?,
-        existingIdentifiers: List<BookIdentifier>,
-    ): List<BookIdentifier> {
-        val identifiersForBook = existingIdentifiers.filter { it.bookId == bookId }
-        return when {
-            isbn != null && identifiersForBook.none { it.type == isbn.type && it.value == isbn.value } -> {
-                identifiersForBook + BookIdentifier(
-                    id = idProvider(),
-                    bookId = bookId,
-                    type = isbn.type,
-                    value = isbn.value,
-                )
-            }
-
-            isbn != null -> identifiersForBook
-
-            else -> identifiersForBook
-        }
-    }
 }

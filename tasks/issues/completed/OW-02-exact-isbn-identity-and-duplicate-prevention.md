@@ -30,7 +30,3 @@ This is a deep rules slice: exact identity should become reliable enough that la
 - [ ] Quantity changes support immediate `Add another copy`, reliable undo, and archive confirmation when decrementing from one copy to zero.
 - [ ] Domain and repository tests cover ISBN validation, equivalence, derived identifier storage, duplicate prevention, and quantity-to-archive behavior.
 
-## Blocked by
-
-- [OW-01-shelf-manual-add-isbn-validation.md](/home/serge/code/personal/book-bee/tasks/OW-01-shelf-manual-add-isbn-validation.md)
-

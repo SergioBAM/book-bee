@@ -1,8 +1,8 @@
 package com.sergebailes.bookbee.domain.usecase
 
+import com.sergebailes.bookbee.domain.isbn.buildIsbnIdentifiers
 import com.sergebailes.bookbee.domain.isbn.parseIsbn
 import com.sergebailes.bookbee.domain.model.Book
-import com.sergebailes.bookbee.domain.model.BookIdentifier
 import com.sergebailes.bookbee.domain.model.Ownership
 import com.sergebailes.bookbee.domain.model.OwnershipStatus
 import com.sergebailes.bookbee.domain.model.ReadStatus
@@ -29,6 +29,12 @@ sealed interface CreateManualShelfBookResult {
         val titleError: String? = null,
         val isbnError: String? = null,
     ) : CreateManualShelfBookResult
+
+    data class DuplicateActiveOwned(
+        val bookId: UUID,
+        val title: String,
+        val authorLine: String?,
+    ) : CreateManualShelfBookResult
 }
 
 class CreateManualShelfBookUseCase(
@@ -50,6 +56,20 @@ class CreateManualShelfBookUseCase(
         if (command.isbn.isNotBlank() && validatedIsbn == null) {
             return CreateManualShelfBookResult.ValidationFailed(
                 isbnError = "Enter a valid ISBN-10 or ISBN-13",
+            )
+        }
+
+        val exactOwnedBook = validatedIsbn?.let { isbn ->
+            shelfRepository.findOwnedBookByExactIsbn(
+                userId = command.userId,
+                isbn = isbn,
+            )
+        }
+        if (exactOwnedBook != null) {
+            return CreateManualShelfBookResult.DuplicateActiveOwned(
+                bookId = exactOwnedBook.book.id,
+                title = exactOwnedBook.book.title,
+                authorLine = exactOwnedBook.book.authors.takeIf(List<String>::isNotEmpty)?.joinToString(", "),
             )
         }
 
@@ -91,18 +111,12 @@ class CreateManualShelfBookUseCase(
             updatedAt = now,
         )
         val existingIdentifiers = matchingWishlistBook?.identifiers?.filter { it.bookId == bookId } ?: emptyList()
-        val identifiers = validatedIsbn?.let { isbn ->
-            if (existingIdentifiers.any { it.type == isbn.type && it.value == isbn.value }) {
-                existingIdentifiers
-            } else {
-                existingIdentifiers + BookIdentifier(
-                    id = idProvider(),
-                    bookId = bookId,
-                    type = isbn.type,
-                    value = isbn.value,
-                )
-            }
-        } ?: existingIdentifiers
+        val identifiers = buildIsbnIdentifiers(
+            bookId = bookId,
+            isbn = validatedIsbn,
+            existingIdentifiers = existingIdentifiers,
+            idProvider = idProvider,
+        )
 
         if (matchingWishlistBook == null) {
             shelfRepository.createBook(
