@@ -21,7 +21,6 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -34,6 +33,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.SwipeToDismissBox
 import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -191,7 +191,7 @@ private fun WishlistBrowseLayout(
                 start = 24.dp,
                 top = 8.dp,
                 end = 24.dp,
-                bottom = 120.dp,
+                bottom = 88.dp,
             ),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -508,8 +508,7 @@ private fun WishlistFooter(
 ) {
     Surface(
         modifier = modifier
-            .fillMaxWidth()
-            .navigationBarsPadding(),
+            .fillMaxWidth(),
     ) {
         Box(
             modifier = Modifier
@@ -576,7 +575,6 @@ private fun WishlistExplanatoryCard(
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
 private fun WishlistBookCard(
     item: WishlistListItem,
     onEditClicked: () -> Unit,
@@ -584,14 +582,7 @@ private fun WishlistBookCard(
     onMoveToShelfClicked: () -> Unit,
     onPointerActiveChanged: (Boolean) -> Unit,
 ) {
-    val dismissState = androidx.compose.material3.rememberSwipeToDismissBoxState(
-        confirmValueChange = { value ->
-            if (value == SwipeToDismissBoxValue.EndToStart) {
-                onDeleteClicked()
-            }
-            false
-        }
-    )
+    val dismissState = rememberSwipeToDismissBoxState()
 
     DisposableEffect(onPointerActiveChanged) {
         onDispose {
@@ -602,6 +593,11 @@ private fun WishlistBookCard(
     SwipeToDismissBox(
         state = dismissState,
         enableDismissFromStartToEnd = false,
+        onDismiss = { value ->
+            if (value == SwipeToDismissBoxValue.EndToStart) {
+                onDeleteClicked()
+            }
+        },
         modifier = Modifier
             .fillMaxWidth()
             .testTag("wishlist-item-${item.id}")
