@@ -630,3 +630,17 @@ When product details conflict, follow this priority:
 5. inferred best practice
 
 Do not silently override product direction. If a change would alter product scope, stop and ask.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked as local markdown files under `.scratch/`. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+Uses the default five-label triage vocabulary. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context repo: use root `CONTEXT.md` and `docs/adr/` when present, plus existing docs under `docs/`. See `docs/agents/domain.md`.
